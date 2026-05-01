@@ -57,6 +57,13 @@
   .tab.active { color: #2a5298; border-bottom-color: #2a5298; }
   .auth-error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 0.9em; min-height: 20px; }
   .hidden { display: none !important; }
+  .month-bar { background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .month-bar label { font-weight: bold; color: #2a5298; }
+  .month-bar input[type="month"] { width: auto; }
+  .month-bar .btn-all { background: #95a5a6; padding: 8px 14px; font-size: 0.9em; }
+  .month-bar .btn-all:hover { background: #7f8c8d; }
+  .month-bar .btn-all.active { background: #2a5298; }
+  .month-bar .label-info { color: #666; font-size: 0.9em; margin-left: auto; }
   .btn-edit { background: #f39c12; padding: 6px 12px; font-size: 0.85em; margin-right: 6px; }
   .btn-edit:hover { background: #d68910; }
   .actions { white-space: nowrap; }
@@ -106,6 +113,12 @@
   <div class="header">
     <h1>💰 Controle Financeiro</h1>
     <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnLogout">Sair</button></div>
+  </div>
+  <div class="month-bar">
+    <label for="monthFilter">Mês:</label>
+    <input type="month" id="monthFilter">
+    <button type="button" class="btn-all" id="btnAllMonths">Ver tudo</button>
+    <span class="label-info" id="monthInfo"></span>
   </div>
   <div class="cards">
     <div class="card"><h3>Total Recebido</h3><div class="value income" id="totalIncome">R$ 0,00</div></div>
@@ -163,6 +176,19 @@
 const TOKEN_KEY = 'fin_token';
 const USER_KEY = 'fin_user';
 let transactions = [];
+let currentMonth = '';
+let showAll = false;
+
+function todayMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function filteredTransactions() {
+  if (showAll) return transactions;
+  if (!currentMonth) return transactions;
+  return transactions.filter(t => (t.date || '').startsWith(currentMonth));
+}
 
 const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -243,8 +269,23 @@ async function enterApp() {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('appScreen').classList.remove('hidden');
   document.getElementById('date').valueAsDate = new Date();
+  if (!currentMonth) currentMonth = todayMonth();
+  document.getElementById('monthFilter').value = currentMonth;
   await reload();
 }
+
+document.getElementById('monthFilter').addEventListener('change', e => {
+  currentMonth = e.target.value || todayMonth();
+  showAll = false;
+  document.getElementById('btnAllMonths').classList.remove('active');
+  render();
+});
+
+document.getElementById('btnAllMonths').addEventListener('click', () => {
+  showAll = !showAll;
+  document.getElementById('btnAllMonths').classList.toggle('active', showAll);
+  render();
+});
 
 async function reload() {
   try {
@@ -258,8 +299,9 @@ async function reload() {
 }
 
 function render() {
-  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const visible = filteredTransactions();
+  const income = visible.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const expense = visible.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const balance = income - expense;
 
   document.getElementById('totalIncome').textContent = fmt(income);
@@ -267,17 +309,28 @@ function render() {
   const balEl = document.getElementById('balance');
   balEl.textContent = fmt(balance);
   balEl.className = 'value ' + (balance >= 0 ? 'balance-positive' : 'balance-negative');
-  document.getElementById('count').textContent = transactions.length;
+  document.getElementById('count').textContent = visible.length;
+
+  const info = document.getElementById('monthInfo');
+  if (showAll) {
+    info.textContent = 'Mostrando todas as transações';
+  } else if (currentMonth) {
+    const [y, m] = currentMonth.split('-');
+    const nome = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    info.textContent = 'Mostrando: ' + nome;
+  } else {
+    info.textContent = '';
+  }
 
   const tbody = document.getElementById('tbody');
   const emptyMsg = document.getElementById('emptyMsg');
   const table = document.getElementById('historyTable');
   tbody.innerHTML = '';
-  if (transactions.length === 0) {
+  if (visible.length === 0) {
     emptyMsg.style.display = 'block'; table.style.display = 'none';
   } else {
     emptyMsg.style.display = 'none'; table.style.display = 'table';
-    transactions.forEach(t => {
+    visible.forEach(t => {
       const tr = document.createElement('tr');
       const d = new Date(t.date + 'T00:00:00');
       tr.innerHTML = `
@@ -295,7 +348,7 @@ function render() {
 }
 
 function renderCategories(type, elId) {
-  const items = transactions.filter(t => t.type === type);
+  const items = filteredTransactions().filter(t => t.type === type);
   const grouped = {};
   items.forEach(t => { const cat = t.category || 'Sem categoria'; grouped[cat] = (grouped[cat] || 0) + Number(t.amount); });
   const total = Object.values(grouped).reduce((a, b) => a + b, 0);
