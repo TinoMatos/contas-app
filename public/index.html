@@ -57,6 +57,22 @@
   .tab.active { color: #2a5298; border-bottom-color: #2a5298; }
   .auth-error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 0.9em; min-height: 20px; }
   .hidden { display: none !important; }
+  .btn-edit { background: #f39c12; padding: 6px 12px; font-size: 0.85em; margin-right: 6px; }
+  .btn-edit:hover { background: #d68910; }
+  .actions { white-space: nowrap; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex;
+    align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal {
+    background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 500px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal h2 { color: #2a5298; margin-bottom: 20px; }
+  .modal .form-group { margin-bottom: 15px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel { background: #95a5a6; }
+  .btn-cancel:hover { background: #7f8c8d; }
   @media (max-width: 700px) { form#form { grid-template-columns: 1fr 1fr; } .report-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -122,6 +138,24 @@
       <tbody id="tbody"></tbody>
     </table>
     <div id="emptyMsg" class="empty">Nenhuma transação registrada ainda.</div>
+  </div>
+</div>
+
+<div id="editModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Editar Transação</h2>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+      <div class="form-group"><label>Descrição</label><input type="text" id="editDesc" required></div>
+      <div class="form-group"><label>Categoria</label><input type="text" id="editCategory"></div>
+      <div class="form-group"><label>Valor (R$)</label><input type="number" id="editAmount" step="0.01" min="0.01" required></div>
+      <div class="form-group"><label>Data</label><input type="date" id="editDate" required></div>
+      <div class="form-group"><label>Tipo</label><select id="editType"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="editCancel">Cancelar</button>
+        <button type="submit">Salvar</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -252,7 +286,7 @@ function render() {
         <td>${escapeHtml(t.category || '-')}</td>
         <td><span class="tag tag-${t.type}">${t.type === 'income' ? 'Recebido' : 'Pago'}</span></td>
         <td class="${t.type}">${fmt(t.amount)}</td>
-        <td><button class="btn-delete" onclick="del(${t.id})">Excluir</button></td>`;
+        <td class="actions"><button class="btn-edit" onclick="openEdit(${t.id})">Editar</button><button class="btn-delete" onclick="del(${t.id})">Excluir</button></td>`;
       tbody.appendChild(tr);
     });
   }
@@ -273,6 +307,41 @@ function renderCategories(type, elId) {
     return `<li><span>${escapeHtml(cat)} <small style="color:#999">(${pct}%)</small></span><strong>${fmt(val)}</strong></li>`;
   }).join('');
 }
+
+function openEdit(id) {
+  const t = transactions.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('editId').value = t.id;
+  document.getElementById('editDesc').value = t.desc;
+  document.getElementById('editCategory').value = t.category || '';
+  document.getElementById('editAmount').value = t.amount;
+  document.getElementById('editDate').value = t.date;
+  document.getElementById('editType').value = t.type;
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+document.getElementById('editCancel').addEventListener('click', () => {
+  document.getElementById('editModal').classList.add('hidden');
+});
+
+document.getElementById('editForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = document.getElementById('editId').value;
+  try {
+    await api('/transactions/' + id, {
+      method: 'PUT',
+      body: JSON.stringify({
+        desc: document.getElementById('editDesc').value.trim(),
+        category: document.getElementById('editCategory').value.trim(),
+        amount: parseFloat(document.getElementById('editAmount').value),
+        type: document.getElementById('editType').value,
+        date: document.getElementById('editDate').value
+      })
+    });
+    document.getElementById('editModal').classList.add('hidden');
+    await reload();
+  } catch (e) { alert(e.message); }
+});
 
 async function del(id) {
   if (!confirm('Excluir esta transação?')) return;

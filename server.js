@@ -112,6 +112,20 @@ app.post('/api/transactions', auth, async (req, res) => {
   res.json(r.rows[0]);
 });
 
+app.put('/api/transactions/:id', auth, async (req, res) => {
+  const { desc, category, amount, type, date } = req.body || {};
+  if (!desc || !amount || !type || !date) return res.status(400).json({ error: 'Dados inválidos' });
+  if (!['income','expense'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  const r = await pool.query(
+    `UPDATE transactions SET description=$1, category=$2, amount=$3, type=$4, date=$5
+     WHERE id=$6 AND user_id=$7
+     RETURNING id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date`,
+    [String(desc).trim(), category ? String(category).trim() : null, amount, type, date, req.params.id, req.user.id]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
+  res.json(r.rows[0]);
+});
+
 app.delete('/api/transactions/:id', auth, async (req, res) => {
   const r = await pool.query(
     'DELETE FROM transactions WHERE id=$1 AND user_id=$2',
