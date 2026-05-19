@@ -64,6 +64,16 @@
   .month-bar .btn-all:hover { background: #7f8c8d; }
   .month-bar .btn-all.active { background: #2a5298; }
   .month-bar .label-info { color: #666; font-size: 0.9em; margin-left: auto; }
+  .profile-bar { background: white; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .profile-bar label { font-weight: bold; color: #2a5298; }
+  .profile-bar select { width: auto; min-width: 180px; }
+  .profile-bar .btn-mini { padding: 8px 12px; font-size: 0.9em; }
+  .profile-bar .btn-mini.secondary { background: #95a5a6; }
+  .profile-bar .btn-mini.secondary:hover { background: #7f8c8d; }
+  .profile-list { list-style: none; margin-top: 10px; }
+  .profile-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; gap: 8px; }
+  .profile-list li .pname { flex: 1; }
+  .profile-list li input { padding: 6px 8px; }
   .btn-edit { background: #f39c12; padding: 6px 12px; font-size: 0.85em; margin-right: 6px; }
   .btn-edit:hover { background: #d68910; }
   .actions { white-space: nowrap; }
@@ -114,6 +124,12 @@
     <h1>💰 Controle Financeiro</h1>
     <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnLogout">Sair</button></div>
   </div>
+  <div class="profile-bar">
+    <label for="profileSelect">Perfil:</label>
+    <select id="profileSelect"></select>
+    <button type="button" class="btn-mini" id="btnNewProfile">+ Novo</button>
+    <button type="button" class="btn-mini secondary" id="btnManageProfiles">Gerenciar</button>
+  </div>
   <div class="month-bar">
     <label for="monthFilter">Mês:</label>
     <input type="month" id="monthFilter">
@@ -154,6 +170,20 @@
   </div>
 </div>
 
+<div id="profileModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Gerenciar Perfis</h2>
+    <ul class="profile-list" id="profileList"></ul>
+    <form id="addProfileForm" style="display:flex; gap:8px; margin-top:15px;">
+      <input type="text" id="newProfileName" placeholder="Nome do novo perfil" maxlength="40" required style="flex:1;">
+      <button type="submit">Adicionar</button>
+    </form>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="profileClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="editModal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Editar Transação</h2>
@@ -175,7 +205,10 @@
 <script>
 const TOKEN_KEY = 'fin_token';
 const USER_KEY = 'fin_user';
+const PROFILE_KEY = 'fin_profile';
 let transactions = [];
+let profiles = [];
+let currentProfileId = null;
 let currentMonth = '';
 let showAll = false;
 
@@ -197,6 +230,7 @@ async function api(path, opts = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if (token) headers.Authorization = 'Bearer ' + token;
+  if (currentProfileId) headers['X-Profile-Id'] = String(currentProfileId);
   const res = await fetch('/api' + path, { ...opts, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Erro');
@@ -257,7 +291,10 @@ function saveSession(token, user) {
 document.getElementById('btnLogout').addEventListener('click', () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(PROFILE_KEY);
   transactions = [];
+  profiles = [];
+  currentProfileId = null;
   document.getElementById('appScreen').classList.add('hidden');
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('loginForm').reset();
@@ -271,7 +308,90 @@ async function enterApp() {
   document.getElementById('date').valueAsDate = new Date();
   if (!currentMonth) currentMonth = todayMonth();
   document.getElementById('monthFilter').value = currentMonth;
+  await loadProfiles();
   await reload();
+}
+
+async function loadProfiles() {
+  profiles = await api('/profiles');
+  if (profiles.length === 0) return;
+  const saved = parseInt(localStorage.getItem(PROFILE_KEY), 10);
+  const found = profiles.find(p => p.id === saved);
+  currentProfileId = found ? found.id : profiles[0].id;
+  localStorage.setItem(PROFILE_KEY, String(currentProfileId));
+  renderProfileSelect();
+}
+
+function renderProfileSelect() {
+  const sel = document.getElementById('profileSelect');
+  sel.innerHTML = profiles.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  sel.value = String(currentProfileId);
+}
+
+document.getElementById('profileSelect').addEventListener('change', async e => {
+  currentProfileId = parseInt(e.target.value, 10);
+  localStorage.setItem(PROFILE_KEY, String(currentProfileId));
+  await reload();
+});
+
+document.getElementById('btnNewProfile').addEventListener('click', async () => {
+  const name = prompt('Nome do novo perfil:');
+  if (!name || !name.trim()) return;
+  try {
+    const p = await api('/profiles', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+    profiles.push(p);
+    currentProfileId = p.id;
+    localStorage.setItem(PROFILE_KEY, String(currentProfileId));
+    renderProfileSelect();
+    await reload();
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById('btnManageProfiles').addEventListener('click', () => {
+  renderProfileList();
+  document.getElementById('profileModal').classList.remove('hidden');
+});
+
+document.getElementById('profileClose').addEventListener('click', () => {
+  document.getElementById('profileModal').classList.add('hidden');
+});
+
+function renderProfileList() {
+  const ul = document.getElementById('profileList');
+  ul.innerHTML = profiles.map(p => `
+    <li data-id="${p.id}">
+      <input type="text" class="pname" value="${escapeHtml(p.name)}" maxlength="40">
+      <button type="button" class="btn-mini" onclick="renameProfile(${p.id})">Salvar</button>
+      <button type="button" class="btn-delete" onclick="deleteProfile(${p.id})" ${profiles.length <= 1 ? 'disabled' : ''}>Excluir</button>
+    </li>`).join('');
+}
+
+async function renameProfile(id) {
+  const li = document.querySelector(`#profileList li[data-id="${id}"]`);
+  const name = li.querySelector('input').value.trim();
+  if (!name) return;
+  try {
+    const p = await api('/profiles/' + id, { method: 'PUT', body: JSON.stringify({ name }) });
+    const idx = profiles.findIndex(x => x.id === id);
+    if (idx >= 0) profiles[idx] = p;
+    renderProfileSelect();
+    renderProfileList();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteProfile(id) {
+  if (!confirm('Excluir este perfil e todas as suas transações?')) return;
+  try {
+    await api('/profiles/' + id, { method: 'DELETE' });
+    profiles = profiles.filter(p => p.id !== id);
+    if (currentProfileId === id) {
+      currentProfileId = profiles[0].id;
+      localStorage.setItem(PROFILE_KEY, String(currentProfileId));
+    }
+    renderProfileSelect();
+    renderProfileList();
+    await reload();
+  } catch (e) { alert(e.message); }
 }
 
 document.getElementById('monthFilter').addEventListener('change', e => {
@@ -375,6 +495,20 @@ function openEdit(id) {
 
 document.getElementById('editCancel').addEventListener('click', () => {
   document.getElementById('editModal').classList.add('hidden');
+});
+
+document.getElementById('addProfileForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = document.getElementById('newProfileName');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    const p = await api('/profiles', { method: 'POST', body: JSON.stringify({ name }) });
+    profiles.push(p);
+    input.value = '';
+    renderProfileSelect();
+    renderProfileList();
+  } catch (e) { alert(e.message); }
 });
 
 document.getElementById('editForm').addEventListener('submit', async e => {
