@@ -100,7 +100,26 @@
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
   .btn-cancel { background: #95a5a6; }
   .btn-cancel:hover { background: #7f8c8d; }
-  @media (max-width: 700px) { form#form { grid-template-columns: 1fr 1fr; } .report-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) {
+    form#form { grid-template-columns: 1fr 1fr; }
+    .report-grid { grid-template-columns: 1fr; }
+    #historyTable thead { display: none; }
+    #historyTable, #historyTable tbody, #historyTable tr, #historyTable td { display: block; width: 100%; }
+    #historyTable tr {
+      background: #f8f9fa; border-radius: 10px; padding: 12px;
+      margin-bottom: 10px; border: 1px solid #eee; position: relative;
+    }
+    #historyTable td { border: none; padding: 2px 0; }
+    #historyTable td:nth-child(1) { font-size: 0.8em; color: #888; }
+    #historyTable td:nth-child(2) { font-weight: bold; font-size: 1.05em; color: #2a5298; padding-right: 90px; }
+    #historyTable td:nth-child(3) { font-size: 0.85em; color: #666; padding-right: 90px; }
+    #historyTable td:nth-child(4) { font-size: 1.2em; font-weight: bold; margin-top: 4px; }
+    #historyTable td.actions {
+      position: absolute; top: 12px; right: 12px; width: auto;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    #historyTable td.actions button { padding: 6px 12px; font-size: 0.8em; min-width: 70px; }
+  }
 </style>
 </head>
 <body>
