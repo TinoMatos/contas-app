@@ -101,6 +101,21 @@
   .btn-cancel { background: #95a5a6; }
   .btn-cancel:hover { background: #7f8c8d; }
   @media (max-width: 700px) { form#form { grid-template-columns: 1fr 1fr; } .report-grid { grid-template-columns: 1fr; } }
+  .install-banner {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 200;
+    background: white; border-radius: 14px; padding: 14px 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 12px;
+    animation: slideUp .3s ease-out;
+  }
+  @keyframes slideUp { from { transform: translateY(120%); } to { transform: translateY(0); } }
+  .install-banner .ico { font-size: 2em; }
+  .install-banner .txt { flex: 1; font-size: 0.9em; line-height: 1.35; color: #333; }
+  .install-banner .txt b { color: #2a5298; }
+  .install-banner .arrow { display: inline-block; font-size: 1.1em; }
+  .install-banner .close {
+    background: #eee; color: #666; border: none; border-radius: 50%;
+    width: 28px; height: 28px; font-size: 1.1em; cursor: pointer; padding: 0; line-height: 1;
+  }
 </style>
 </head>
 <body>
@@ -592,6 +607,25 @@ document.getElementById('form').addEventListener('submit', async e => {
 });
 
 if (localStorage.getItem(TOKEN_KEY)) enterApp();
+
+(function showIosInstallBanner() {
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|crios|fxios|edgios).)*safari/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  const dismissed = localStorage.getItem('fin_install_dismissed');
+  if (!isIos || !isSafari || isStandalone || dismissed) return;
+  const banner = document.createElement('div');
+  banner.className = 'install-banner';
+  banner.innerHTML = `
+    <div class="ico">📲</div>
+    <div class="txt">Instale o app: toque em <b>Compartilhar <span class="arrow">⬆️</span></b> e depois em <b>"Adicionar à Tela de Início"</b>.</div>
+    <button class="close" aria-label="Fechar">×</button>`;
+  banner.querySelector('.close').addEventListener('click', () => {
+    localStorage.setItem('fin_install_dismissed', '1');
+    banner.remove();
+  });
+  document.body.appendChild(banner);
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
