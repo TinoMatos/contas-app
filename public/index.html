@@ -55,6 +55,10 @@
   .tabs { display: flex; margin-bottom: 25px; border-bottom: 2px solid #eee; }
   .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; color: #666; font-weight: bold; border-bottom: 3px solid transparent; margin-bottom: -2px; }
   .tab.active { color: #2a5298; border-bottom-color: #2a5298; }
+  .hist-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #eee; }
+  .hist-tab { padding: 10px 18px; cursor: pointer; color: #666; font-weight: bold; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+  .hist-tab.active.income-tab { color: #27ae60; border-bottom-color: #27ae60; }
+  .hist-tab.active.expense-tab { color: #e74c3c; border-bottom-color: #e74c3c; }
   .auth-error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 0.9em; min-height: 20px; }
   .hidden { display: none !important; }
   .month-bar { background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -146,7 +150,8 @@
     <h2>Nova Transação</h2>
     <form id="form">
       <div class="form-group"><label>Descrição</label><input type="text" id="desc" required placeholder="Ex: Salário, Mercado..."></div>
-      <div class="form-group"><label>Categoria</label><input type="text" id="category" placeholder="Ex: Alimentação"></div>
+      <div class="form-group"><label>Categoria</label><input type="text" id="category" placeholder="Ex: Alimentação" list="categoryList" autocomplete="off"></div>
+      <datalist id="categoryList"></datalist>
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="amount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="date" required></div>
       <div class="form-group"><label>Tipo</label><select id="type"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
@@ -162,8 +167,12 @@
   </div>
   <div class="panel">
     <h2>Histórico</h2>
+    <div class="hist-tabs">
+      <div class="hist-tab income-tab active" data-hist="income">Recebidos <span id="countIncome">(0)</span></div>
+      <div class="hist-tab expense-tab" data-hist="expense">Pagos <span id="countExpense">(0)</span></div>
+    </div>
     <table id="historyTable">
-      <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th></th></tr></thead>
+      <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
     <div id="emptyMsg" class="empty">Nenhuma transação registrada ainda.</div>
@@ -190,7 +199,7 @@
     <form id="editForm">
       <input type="hidden" id="editId">
       <div class="form-group"><label>Descrição</label><input type="text" id="editDesc" required></div>
-      <div class="form-group"><label>Categoria</label><input type="text" id="editCategory"></div>
+      <div class="form-group"><label>Categoria</label><input type="text" id="editCategory" list="categoryList" autocomplete="off"></div>
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="editAmount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="editDate" required></div>
       <div class="form-group"><label>Tipo</label><select id="editType"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
@@ -211,6 +220,7 @@ let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
 let showAll = false;
+let histType = 'income';
 
 function todayMonth() {
   const d = new Date();
@@ -401,6 +411,14 @@ document.getElementById('monthFilter').addEventListener('change', e => {
   render();
 });
 
+document.querySelectorAll('.hist-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    histType = t.dataset.hist;
+    document.querySelectorAll('.hist-tab').forEach(x => x.classList.toggle('active', x === t));
+    render();
+  });
+});
+
 document.getElementById('btnAllMonths').addEventListener('click', () => {
   showAll = !showAll;
   document.getElementById('btnAllMonths').classList.toggle('active', showAll);
@@ -442,22 +460,28 @@ function render() {
     info.textContent = '';
   }
 
+  const incomeList = visible.filter(t => t.type === 'income');
+  const expenseList = visible.filter(t => t.type === 'expense');
+  document.getElementById('countIncome').textContent = '(' + incomeList.length + ')';
+  document.getElementById('countExpense').textContent = '(' + expenseList.length + ')';
+  const histList = histType === 'income' ? incomeList : expenseList;
+
   const tbody = document.getElementById('tbody');
   const emptyMsg = document.getElementById('emptyMsg');
   const table = document.getElementById('historyTable');
   tbody.innerHTML = '';
-  if (visible.length === 0) {
+  if (histList.length === 0) {
+    emptyMsg.textContent = histType === 'income' ? 'Nenhum recebimento neste período.' : 'Nenhum pagamento neste período.';
     emptyMsg.style.display = 'block'; table.style.display = 'none';
   } else {
     emptyMsg.style.display = 'none'; table.style.display = 'table';
-    visible.forEach(t => {
+    histList.forEach(t => {
       const tr = document.createElement('tr');
       const d = new Date(t.date + 'T00:00:00');
       tr.innerHTML = `
         <td>${d.toLocaleDateString('pt-BR')}</td>
         <td>${escapeHtml(t.desc)}</td>
         <td>${escapeHtml(t.category || '-')}</td>
-        <td><span class="tag tag-${t.type}">${t.type === 'income' ? 'Recebido' : 'Pago'}</span></td>
         <td class="${t.type}">${fmt(t.amount)}</td>
         <td class="actions"><button class="btn-edit" onclick="openEdit(${t.id})">Editar</button><button class="btn-delete" onclick="del(${t.id})">Excluir</button></td>`;
       tbody.appendChild(tr);
@@ -465,6 +489,9 @@ function render() {
   }
   renderCategories('income', 'incomeCategories');
   renderCategories('expense', 'expenseCategories');
+
+  const cats = [...new Set(transactions.map(t => (t.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  document.getElementById('categoryList').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
 }
 
 function renderCategories(type, elId) {
