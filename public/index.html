@@ -2,8 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Controle Financeiro</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#2a5298">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -586,6 +592,10 @@ document.getElementById('form').addEventListener('submit', async e => {
 });
 
 if (localStorage.getItem(TOKEN_KEY)) enterApp();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
 </script>
 </body>
 </html>
