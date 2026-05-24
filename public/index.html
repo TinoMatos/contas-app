@@ -151,7 +151,7 @@
 <div id="appScreen" class="container hidden">
   <div class="header">
     <h1>💰 Controle Financeiro</h1>
-    <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnLogout">Sair</button></div>
+    <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnBio" title="Bloqueio biométrico">🔒</button><button class="btn-logout" id="btnLogout">Sair</button></div>
   </div>
   <div class="profile-bar">
     <label for="profileSelect">Perfil:</label>
@@ -236,8 +236,20 @@
   </div>
 </div>
 
+<div id="lockScreen" class="auth-wrapper hidden">
+  <div class="auth-box" style="text-align:center;">
+    <div style="font-size:4em; margin-bottom:10px;">🔒</div>
+    <h2>App Bloqueado</h2>
+    <p class="subtitle">Use Face ID para desbloquear</p>
+    <button id="btnUnlock" style="width:100%; margin-top:15px;">Desbloquear com Face ID</button>
+    <div class="auth-error" id="lockError"></div>
+    <button id="btnLockLogout" class="btn-cancel" style="width:100%; margin-top:10px;">Sair da conta</button>
+  </div>
+</div>
+
 <script>
 const TOKEN_KEY = 'fin_token';
+const BIO_KEY = 'fin_biometric_cred';
 const USER_KEY = 'fin_user';
 const PROFILE_KEY = 'fin_profile';
 let transactions = [];
@@ -343,6 +355,7 @@ async function enterApp() {
   document.getElementById('date').valueAsDate = new Date();
   if (!currentMonth) currentMonth = todayMonth();
   document.getElementById('monthFilter').value = currentMonth;
+  updateBioButton();
   await loadProfiles();
   await reload();
 }
@@ -610,7 +623,90 @@ document.getElementById('form').addEventListener('submit', async e => {
   finally { btn.disabled = false; }
 });
 
-if (localStorage.getItem(TOKEN_KEY)) enterApp();
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer; }
+
+async function enableBiometric() {
+  if (!window.PublicKeyCredential) { alert('Seu dispositivo não suporta biometria.'); return; }
+  try {
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: 'Controle Financeiro' },
+        user: {
+          id: crypto.getRandomValues(new Uint8Array(16)),
+          name: localStorage.getItem(USER_KEY) || 'user',
+          displayName: localStorage.getItem(USER_KEY) || 'Usuário'
+        },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+        timeout: 60000
+      }
+    });
+    localStorage.setItem(BIO_KEY, bufToB64(cred.rawId));
+    alert('Bloqueio biométrico ativado neste aparelho!');
+    updateBioButton();
+  } catch (e) { alert('Não foi possível ativar: ' + e.message); }
+}
+
+async function verifyBiometric() {
+  const credId = localStorage.getItem(BIO_KEY);
+  if (!credId) return true;
+  await navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials: [{ type: 'public-key', id: b64ToBuf(credId) }],
+      userVerification: 'required',
+      timeout: 60000
+    }
+  });
+  return true;
+}
+
+function disableBiometric() {
+  if (!confirm('Desativar bloqueio biométrico neste aparelho?')) return;
+  localStorage.removeItem(BIO_KEY);
+  updateBioButton();
+}
+
+function updateBioButton() {
+  const btn = document.getElementById('btnBio');
+  if (!btn) return;
+  btn.textContent = localStorage.getItem(BIO_KEY) ? '🔓' : '🔒';
+  btn.title = localStorage.getItem(BIO_KEY) ? 'Desativar bloqueio biométrico' : 'Ativar bloqueio biométrico';
+}
+
+document.getElementById('btnBio').addEventListener('click', () => {
+  if (localStorage.getItem(BIO_KEY)) disableBiometric();
+  else enableBiometric();
+});
+
+async function tryUnlock() {
+  const err = document.getElementById('lockError');
+  err.textContent = '';
+  try {
+    await verifyBiometric();
+    document.getElementById('lockScreen').classList.add('hidden');
+    await enterApp();
+  } catch (e) { err.textContent = 'Falha na autenticação. Tente novamente.'; }
+}
+
+document.getElementById('btnUnlock').addEventListener('click', tryUnlock);
+document.getElementById('btnLockLogout').addEventListener('click', () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  document.getElementById('lockScreen').classList.add('hidden');
+  document.getElementById('authScreen').classList.remove('hidden');
+});
+
+if (localStorage.getItem(TOKEN_KEY)) {
+  if (localStorage.getItem(BIO_KEY)) {
+    document.getElementById('lockScreen').classList.remove('hidden');
+    tryUnlock();
+  } else {
+    enterApp();
+  }
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
