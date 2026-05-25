@@ -18,8 +18,12 @@
     min-height: 100vh; padding: 20px; color: #333;
   }
   .container { max-width: 1000px; margin: 0 auto; }
-  .submit-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .submit-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; grid-column: 1 / -1; }
   .submit-row button { width: auto; }
+  @media (max-width: 768px) {
+    .submit-row { justify-content: space-between; }
+    .submit-row button { flex: 1; min-width: 140px; }
+  }
   .recurring-inline { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.95em; color: #555; }
   .recurring-inline input { width: auto; margin: 0; }
   .reminder { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #2a5298; gap: 10px; }
