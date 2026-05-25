@@ -18,8 +18,10 @@
     min-height: 100vh; padding: 20px; color: #333;
   }
   .container { max-width: 1000px; margin: 0 auto; }
-  .recurring-opt label { display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; }
-  .recurring-opt input { width: auto; margin: 0; }
+  .submit-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .submit-row button { width: auto; }
+  .recurring-inline { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.95em; color: #555; }
+  .recurring-inline input { width: auto; margin: 0; }
   .reminder { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #2a5298; gap: 10px; }
   .reminder.expense { border-left-color: #e74c3c; }
   .reminder.income { border-left-color: #27ae60; }
@@ -191,10 +193,10 @@
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="amount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="date" required></div>
       <div class="form-group"><label>Tipo</label><select id="type"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
-      <div class="form-group recurring-opt">
-        <label><input type="checkbox" id="recurringCheck"> 🔁 Cobrar/Receber todo mês (usa o dia da data acima)</label>
+      <div class="submit-row">
+        <button type="submit">Adicionar</button>
+        <label class="recurring-inline"><input type="checkbox" id="recurringCheck"> 🔁 Repetir todo mês</label>
       </div>
-      <button type="submit">Adicionar</button>
     </form>
   </div>
 
