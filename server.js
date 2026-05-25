@@ -46,6 +46,18 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id);
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE;
     CREATE INDEX IF NOT EXISTS idx_tx_profile ON transactions(profile_id);
+    CREATE TABLE IF NOT EXISTS recurring_bills (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      category TEXT,
+      amount NUMERIC(12,2) NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('income','expense')),
+      day_of_month INTEGER NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_recurring_profile ON recurring_bills(profile_id);
   `);
 
   // Backfill: cria perfil "Principal" para cada usuário que ainda não tem,
@@ -212,6 +224,38 @@ app.put('/api/transactions/:id', auth, resolveProfile, async (req, res) => {
 app.delete('/api/transactions/:id', auth, resolveProfile, async (req, res) => {
   const r = await pool.query(
     'DELETE FROM transactions WHERE id=$1 AND user_id=$2 AND profile_id=$3',
+    [req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
+  res.json({ ok: true });
+});
+
+app.get('/api/recurring', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    `SELECT id, description AS desc, category, amount::float AS amount, type, day_of_month
+     FROM recurring_bills WHERE user_id=$1 AND profile_id=$2 ORDER BY day_of_month ASC, id ASC`,
+    [req.user.id, req.profileId]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/recurring', auth, resolveProfile, async (req, res) => {
+  const { desc, category, amount, type, day_of_month } = req.body || {};
+  const day = parseInt(day_of_month, 10);
+  if (!desc || !amount || !type || !day || day < 1 || day > 31) return res.status(400).json({ error: 'Dados inválidos' });
+  if (!['income','expense'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  const r = await pool.query(
+    `INSERT INTO recurring_bills(user_id,profile_id,description,category,amount,type,day_of_month)
+     VALUES($1,$2,$3,$4,$5,$6,$7)
+     RETURNING id, description AS desc, category, amount::float AS amount, type, day_of_month`,
+    [req.user.id, req.profileId, String(desc).trim(), category ? String(category).trim() : null, amount, type, day]
+  );
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/recurring/:id', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    'DELETE FROM recurring_bills WHERE id=$1 AND user_id=$2 AND profile_id=$3',
     [req.params.id, req.user.id, req.profileId]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });

@@ -18,6 +18,13 @@
     min-height: 100vh; padding: 20px; color: #333;
   }
   .container { max-width: 1000px; margin: 0 auto; }
+  .recurring-opt label { display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; }
+  .recurring-opt input { width: auto; margin: 0; }
+  .reminder { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #2a5298; gap: 10px; }
+  .reminder.expense { border-left-color: #e74c3c; }
+  .reminder.income { border-left-color: #27ae60; }
+  .reminder-desc { font-weight: 600; }
+  .reminder-meta { font-size: 0.85em; color: #666; margin-top: 2px; }
   .app-footer { margin-top: 30px; padding: 20px; text-align: center; color: rgba(255,255,255,0.85); font-size: 0.9em; }
   .app-footer a { color: white; text-decoration: none; font-weight: 500; padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.1); display: inline-block; margin: 4px; }
   .app-footer a:hover { background: rgba(255,255,255,0.2); }
@@ -184,8 +191,17 @@
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="amount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="date" required></div>
       <div class="form-group"><label>Tipo</label><select id="type"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
+      <div class="form-group recurring-opt">
+        <label><input type="checkbox" id="recurringCheck"> 🔁 Cobrar/Receber todo mês (usa o dia da data acima)</label>
+      </div>
       <button type="submit">Adicionar</button>
     </form>
+  </div>
+
+  <div class="panel" id="remindersPanel" style="display:none;">
+    <h2>🔔 Lembretes deste mês</h2>
+    <div id="remindersList"></div>
+    <button type="button" class="btn-mini" id="btnManageRecurring" style="margin-top:10px;">Gerenciar contas fixas</button>
   </div>
   <div class="panel">
     <h2>Relatório</h2>
@@ -211,6 +227,14 @@
     <span class="footer-sep">·</span>
     <a href="#" id="iosInstallLink">🍎 Instalar no iPhone</a>
   </footer>
+</div>
+
+<div id="recurringModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Contas fixas mensais</h2>
+    <div id="recurringList" style="margin:15px 0;"></div>
+    <button type="button" id="closeRecurringModal">Fechar</button>
+  </div>
 </div>
 
 <div id="iosHelpModal" class="modal-overlay hidden">
@@ -275,6 +299,7 @@ const BIO_KEY = 'fin_biometric_cred';
 const USER_KEY = 'fin_user';
 const PROFILE_KEY = 'fin_profile';
 let transactions = [];
+let recurring = [];
 let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
@@ -362,6 +387,7 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(PROFILE_KEY);
   transactions = [];
+  recurring = [];
   profiles = [];
   currentProfileId = null;
   document.getElementById('appScreen').classList.add('hidden');
@@ -487,8 +513,9 @@ document.getElementById('btnAllMonths').addEventListener('click', () => {
 
 async function reload() {
   try {
-    transactions = await api('/transactions');
+    [transactions, recurring] = await Promise.all([api('/transactions'), api('/recurring')]);
     render();
+    renderReminders();
   } catch (e) {
     if (e.message.includes('Token') || e.message.includes('Sem token')) {
       document.getElementById('btnLogout').click();
@@ -628,21 +655,115 @@ document.getElementById('form').addEventListener('submit', async e => {
   const btn = e.target.querySelector('button');
   btn.disabled = true;
   try {
+    const desc = document.getElementById('desc').value.trim();
+    const category = document.getElementById('category').value.trim();
+    const amount = parseFloat(document.getElementById('amount').value);
+    const type = document.getElementById('type').value;
+    const date = document.getElementById('date').value;
+    const isRecurring = document.getElementById('recurringCheck').checked;
     await api('/transactions', {
       method: 'POST',
-      body: JSON.stringify({
-        desc: document.getElementById('desc').value.trim(),
-        category: document.getElementById('category').value.trim(),
-        amount: parseFloat(document.getElementById('amount').value),
-        type: document.getElementById('type').value,
-        date: document.getElementById('date').value
-      })
+      body: JSON.stringify({ desc, category, amount, type, date })
     });
+    if (isRecurring) {
+      const day = parseInt(date.split('-')[2], 10);
+      const exists = recurring.some(r => r.desc.toLowerCase() === desc.toLowerCase() && r.day_of_month === day);
+      if (!exists) {
+        await api('/recurring', {
+          method: 'POST',
+          body: JSON.stringify({ desc, category, amount, type, day_of_month: day })
+        });
+      }
+    }
     e.target.reset();
     document.getElementById('date').valueAsDate = new Date();
     await reload();
   } catch (e) { alert(e.message); }
   finally { btn.disabled = false; }
+});
+
+function pendingReminders() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1;
+  const monthPrefix = `${y}-${String(m).padStart(2,'0')}`;
+  return recurring.filter(r => {
+    if (today.getDate() < r.day_of_month) return false;
+    const paid = transactions.some(t =>
+      (t.date || '').startsWith(monthPrefix) &&
+      t.type === r.type &&
+      (t.desc || '').toLowerCase() === r.desc.toLowerCase()
+    );
+    return !paid;
+  });
+}
+
+function renderReminders() {
+  const panel = document.getElementById('remindersPanel');
+  const list = document.getElementById('remindersList');
+  const pending = pendingReminders();
+  if (pending.length === 0 && recurring.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  if (pending.length === 0) {
+    list.innerHTML = '<div class="empty">Nenhum lembrete pendente este mês 🎉</div>';
+    return;
+  }
+  list.innerHTML = pending.map(r => `
+    <div class="reminder ${r.type}">
+      <div class="reminder-info">
+        <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
+        <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+      </div>
+      <button class="btn-mini" data-pay="${r.id}">${r.type === 'expense' ? 'Já paguei' : 'Já recebi'}</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-pay]').forEach(b => {
+    b.addEventListener('click', () => payReminder(parseInt(b.dataset.pay, 10)));
+  });
+}
+
+async function payReminder(id) {
+  const r = recurring.find(x => x.id === id);
+  if (!r) return;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await api('/transactions', {
+      method: 'POST',
+      body: JSON.stringify({ desc: r.desc, category: r.category, amount: r.amount, type: r.type, date: today })
+    });
+    await reload();
+  } catch (e) { alert(e.message); }
+}
+
+document.getElementById('btnManageRecurring').addEventListener('click', () => {
+  const modal = document.getElementById('recurringModal');
+  const list = document.getElementById('recurringList');
+  if (recurring.length === 0) {
+    list.innerHTML = '<div class="empty">Nenhuma conta fixa cadastrada. Crie marcando "Cobrar todo mês" ao adicionar uma transação.</div>';
+  } else {
+    list.innerHTML = recurring.map(r => `
+      <div class="reminder ${r.type}">
+        <div class="reminder-info">
+          <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
+          <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+        </div>
+        <button class="btn-mini" data-del-rec="${r.id}" style="background:#e74c3c;color:white;">Excluir</button>
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-del-rec]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Remover esta conta fixa? As transações já registradas continuam.')) return;
+        try { await api('/recurring/' + b.dataset.delRec, { method: 'DELETE' }); await reload(); openManageRecurring(); }
+        catch (e) { alert(e.message); }
+      });
+    });
+  }
+  modal.classList.remove('hidden');
+});
+
+function openManageRecurring() { document.getElementById('btnManageRecurring').click(); }
+document.getElementById('closeRecurringModal').addEventListener('click', () => {
+  document.getElementById('recurringModal').classList.add('hidden');
 });
 
 function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
