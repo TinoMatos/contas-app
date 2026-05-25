@@ -18,6 +18,10 @@
     min-height: 100vh; padding: 20px; color: #333;
   }
   .container { max-width: 1000px; margin: 0 auto; }
+  .app-footer { margin-top: 30px; padding: 20px; text-align: center; color: rgba(255,255,255,0.85); font-size: 0.9em; }
+  .app-footer a { color: white; text-decoration: none; font-weight: 500; padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.1); display: inline-block; margin: 4px; }
+  .app-footer a:hover { background: rgba(255,255,255,0.2); }
+  .footer-sep { opacity: 0.5; margin: 0 4px; }
   .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px; }
   h1 { color: white; font-size: 1.8em; }
   .user-info { color: white; display: flex; align-items: center; gap: 12px; }
@@ -201,6 +205,24 @@
       <tbody id="tbody"></tbody>
     </table>
     <div id="emptyMsg" class="empty">Nenhuma transação registrada ainda.</div>
+  </div>
+  <footer class="app-footer">
+    <a href="/financas.apk" download>📱 Baixar app para Android</a>
+    <span class="footer-sep">·</span>
+    <a href="#" id="iosInstallLink">🍎 Instalar no iPhone</a>
+  </footer>
+</div>
+
+<div id="iosHelpModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Instalar no iPhone</h2>
+    <ol style="line-height:1.8; padding-left:20px;">
+      <li>Abra este site no <strong>Safari</strong></li>
+      <li>Toque no botão <strong>Compartilhar</strong> (quadrado com seta ↑)</li>
+      <li>Role e toque em <strong>"Adicionar à Tela de Início"</strong></li>
+      <li>Toque em <strong>Adicionar</strong></li>
+    </ol>
+    <button type="button" id="closeIosHelp" style="margin-top:15px;">Fechar</button>
   </div>
 </div>
 
@@ -707,6 +729,14 @@ if (localStorage.getItem(TOKEN_KEY)) {
     enterApp();
   }
 }
+
+document.getElementById('iosInstallLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('iosHelpModal').classList.remove('hidden');
+});
+document.getElementById('closeIosHelp').addEventListener('click', () => {
+  document.getElementById('iosHelpModal').classList.add('hidden');
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
