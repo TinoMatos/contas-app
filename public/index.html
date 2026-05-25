@@ -570,7 +570,7 @@ function render() {
         <td>${escapeHtml(t.desc)}</td>
         <td>${escapeHtml(t.category || '-')}</td>
         <td class="${t.type}">${fmt(t.amount)}</td>
-        <td class="actions"><button class="btn-edit" onclick="openEdit(${t.id})">Editar</button><button class="btn-delete" onclick="del(${t.id})">Excluir</button></td>`;
+        <td class="actions"><button class="btn-edit" title="Tornar conta fixa mensal" onclick="makeRecurring(${t.id})" style="background:#8e44ad;">🔁</button><button class="btn-edit" onclick="openEdit(${t.id})">Editar</button><button class="btn-delete" onclick="del(${t.id})">Excluir</button></td>`;
       tbody.appendChild(tr);
     });
   }
@@ -681,6 +681,23 @@ document.getElementById('form').addEventListener('submit', async e => {
   } catch (e) { alert(e.message); }
   finally { btn.disabled = false; }
 });
+
+window.makeRecurring = async function(id) {
+  const t = transactions.find(x => x.id === id);
+  if (!t) return;
+  const day = parseInt((t.date || '').split('-')[2], 10);
+  const exists = recurring.some(r => r.desc.toLowerCase() === (t.desc || '').toLowerCase() && r.day_of_month === day && r.type === t.type);
+  if (exists) { alert('Esta conta já está cadastrada como fixa.'); return; }
+  if (!confirm(`Tornar "${t.desc}" uma conta fixa que se repete todo dia ${day}?`)) return;
+  try {
+    await api('/recurring', {
+      method: 'POST',
+      body: JSON.stringify({ desc: t.desc, category: t.category, amount: t.amount, type: t.type, day_of_month: day })
+    });
+    await reload();
+    alert('Conta fixa criada! Vai aparecer nos lembretes mês que vem.');
+  } catch (e) { alert(e.message); }
+};
 
 function pendingReminders() {
   const today = new Date();
