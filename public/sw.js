@@ -1,4 +1,4 @@
-const CACHE = 'fin-v14';
+const CACHE = 'fin-v15';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -163,6 +163,18 @@
   .box-card-edit-actions button { padding: 8px 12px; font-size: 0.85em; }
   .btn-add-box { width: 100%; background: #27ae60; margin-bottom: 4px; }
   .btn-add-box:hover { background: #1e8e4e; }
+  .box-actions-row { display: flex; gap: 8px; margin-bottom: 4px; }
+  .box-actions-row button { flex: 1; margin-bottom: 0; }
+  .btn-transfer-box { background: #2a5298; }
+  .btn-transfer-box:hover { background: #1e3c72; }
+  .transfer-history { margin-top: 18px; }
+  .transfer-history h4 { font-size: 0.8em; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .transfer-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eee; font-size: 0.92em; }
+  .transfer-item .ti-main { flex: 1; min-width: 0; }
+  .transfer-item .ti-route { font-weight: 600; color: #2a3a4f; }
+  .transfer-item .ti-date { color: #999; font-size: 0.82em; margin-top: 2px; }
+  .transfer-item .ti-amount { font-weight: bold; color: #2a5298; white-space: nowrap; }
+  .transfer-empty { color: #999; text-align: center; padding: 14px 0; font-size: 0.9em; }
   .box-add-form .form-group { margin-bottom: 14px; }
   .box-empty { text-align: center; color: #999; padding: 24px 0; }
   .btn-calc-bar {
@@ -423,10 +435,27 @@
       <p class="box-intro">Onde está seu dinheiro (bancos, carteira...). Ao registrar uma transação, você pode escolher de qual caixa saiu ou entrou.</p>
       <div class="box-total" id="boxesTotal"></div>
       <ul class="box-list" id="boxList"></ul>
-      <button type="button" class="btn-add-box" id="btnShowAddBox">+ Novo caixa</button>
+      <div class="box-actions-row">
+        <button type="button" class="btn-transfer-box" id="btnShowTransfer">↔ Transferir</button>
+        <button type="button" class="btn-add-box" id="btnShowAddBox">+ Novo caixa</button>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="boxesClose">Fechar</button>
       </div>
+    </div>
+    <div id="boxesTransferView" class="hidden">
+      <h3 style="color:#2a5298; margin-bottom:14px;">↔ Transferir entre caixas</h3>
+      <form id="transferForm">
+        <div class="form-group"><label>De (sai o dinheiro)</label><select id="transferFrom"></select></div>
+        <div class="form-group"><label>Para (entra o dinheiro)</label><select id="transferTo"></select></div>
+        <div class="form-group"><label>Valor (R$)</label><input type="number" id="transferAmount" step="0.01" min="0.01" placeholder="0,00" required></div>
+        <div class="form-group"><label>Data</label><input type="date" id="transferDate" required></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="btnCancelTransfer">Voltar</button>
+          <button type="submit">Transferir</button>
+        </div>
+      </form>
+      <div class="transfer-history" id="transferHistory"></div>
     </div>
     <div id="boxesAddView" class="hidden">
       <form id="addBoxForm">
@@ -521,6 +550,7 @@ const PROFILE_KEY = 'fin_profile';
 let transactions = [];
 let recurring = [];
 let boxes = [];
+let transfers = [];
 let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
@@ -610,6 +640,7 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   transactions = [];
   recurring = [];
   boxes = [];
+  transfers = [];
   profiles = [];
   currentProfileId = null;
   document.getElementById('appScreen').classList.add('hidden');
@@ -735,7 +766,7 @@ document.getElementById('btnAllMonths').addEventListener('click', () => {
 
 async function reload() {
   try {
-    [transactions, recurring, boxes] = await Promise.all([api('/transactions'), api('/recurring'), api('/boxes')]);
+    [transactions, recurring, boxes, transfers] = await Promise.all([api('/transactions'), api('/recurring'), api('/boxes'), api('/transfers')]);
     render();
     renderReminders();
     renderBoxSelects();
@@ -1142,7 +1173,77 @@ function renderBoxList() {
 function showBoxView(which) {
   document.getElementById('boxesListView').classList.toggle('hidden', which !== 'list');
   document.getElementById('boxesAddView').classList.toggle('hidden', which !== 'add');
+  document.getElementById('boxesTransferView').classList.toggle('hidden', which !== 'transfer');
 }
+
+function fillTransferSelects() {
+  const opts = boxes.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  const from = document.getElementById('transferFrom');
+  const to = document.getElementById('transferTo');
+  from.innerHTML = opts;
+  to.innerHTML = opts;
+  from.selectedIndex = 0;
+  to.selectedIndex = Math.min(1, boxes.length - 1);
+}
+
+function renderTransferHistory() {
+  const el = document.getElementById('transferHistory');
+  if (transfers.length === 0) {
+    el.innerHTML = '<h4>Últimas transferências</h4><div class="transfer-empty">Nenhuma transferência ainda.</div>';
+    return;
+  }
+  el.innerHTML = '<h4>Últimas transferências</h4>' + transfers.slice(0, 12).map(tr => {
+    const d = new Date(tr.date + 'T00:00:00').toLocaleDateString('pt-BR');
+    return `
+      <div class="transfer-item">
+        <div class="ti-main">
+          <div class="ti-route">${escapeHtml(tr.from_name || '—')} → ${escapeHtml(tr.to_name || '—')}</div>
+          <div class="ti-date">${d}</div>
+        </div>
+        <span class="ti-amount">${fmt(tr.amount)}</span>
+        <button type="button" class="icon-btn danger" title="Desfazer" onclick="deleteTransfer(${tr.id})">🗑️</button>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('btnShowTransfer').addEventListener('click', () => {
+  if (boxes.length < 2) { alert('Você precisa de pelo menos 2 caixas para transferir.'); return; }
+  fillTransferSelects();
+  document.getElementById('transferAmount').value = '';
+  document.getElementById('transferDate').valueAsDate = new Date();
+  renderTransferHistory();
+  showBoxView('transfer');
+});
+document.getElementById('btnCancelTransfer').addEventListener('click', () => showBoxView('list'));
+
+document.getElementById('transferForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const from_box_id = document.getElementById('transferFrom').value;
+  const to_box_id = document.getElementById('transferTo').value;
+  const amount = parseFloat(document.getElementById('transferAmount').value);
+  const date = document.getElementById('transferDate').value;
+  if (from_box_id === to_box_id) { alert('Escolha caixas diferentes para origem e destino.'); return; }
+  if (!amount || amount <= 0) { alert('Valor inválido.'); return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    await api('/transfers', { method: 'POST', body: JSON.stringify({ from_box_id, to_box_id, amount, date }) });
+    await reload();
+    fillTransferSelects();
+    document.getElementById('transferAmount').value = '';
+    renderTransferHistory();
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; }
+});
+
+window.deleteTransfer = async function(id) {
+  if (!confirm('Desfazer esta transferência? O dinheiro volta para o caixa de origem.')) return;
+  try {
+    await api('/transfers/' + id, { method: 'DELETE' });
+    await reload();
+    renderTransferHistory();
+  } catch (e) { alert(e.message); }
+};
 
 function openBoxesModal() {
   editingBoxId = null;

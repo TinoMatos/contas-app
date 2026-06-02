@@ -69,6 +69,17 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_boxes_profile ON cash_boxes(profile_id);
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_tx_box ON transactions(box_id);
+    CREATE TABLE IF NOT EXISTS transfers (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      from_box_id INTEGER REFERENCES cash_boxes(id) ON DELETE CASCADE,
+      to_box_id INTEGER REFERENCES cash_boxes(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL,
+      date DATE NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_transfers_profile ON transfers(profile_id);
   `);
 
   // Backfill: cria perfil "Principal" para cada usuário que ainda não tem,
@@ -291,7 +302,9 @@ app.get('/api/boxes', auth, resolveProfile, async (req, res) => {
     `SELECT b.id, b.name, b.initial_balance::float AS initial_balance,
             (b.initial_balance
               + COALESCE(SUM(CASE WHEN t.type='income' THEN t.amount ELSE 0 END),0)
-              - COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END),0))::float AS balance
+              - COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END),0)
+              + COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.to_box_id = b.id),0)
+              - COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.from_box_id = b.id),0))::float AS balance
      FROM cash_boxes b
      LEFT JOIN transactions t ON t.box_id = b.id
      WHERE b.user_id=$1 AND b.profile_id=$2
@@ -339,6 +352,48 @@ app.delete('/api/boxes/:id', auth, resolveProfile, async (req, res) => {
     [req.params.id, req.user.id, req.profileId]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Caixa não encontrado' });
+  res.json({ ok: true });
+});
+
+// ---- Transferências entre caixas (não contam como receita/despesa) ----
+app.get('/api/transfers', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    `SELECT tr.id, tr.from_box_id, tr.to_box_id, tr.amount::float AS amount,
+            to_char(tr.date,'YYYY-MM-DD') AS date, fb.name AS from_name, tb.name AS to_name
+     FROM transfers tr
+     LEFT JOIN cash_boxes fb ON fb.id = tr.from_box_id
+     LEFT JOIN cash_boxes tb ON tb.id = tr.to_box_id
+     WHERE tr.user_id=$1 AND tr.profile_id=$2
+     ORDER BY tr.date DESC, tr.id DESC`,
+    [req.user.id, req.profileId]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/transfers', auth, resolveProfile, async (req, res) => {
+  const { from_box_id, to_box_id, amount, date } = req.body || {};
+  const from = await resolveBoxId(from_box_id, req.user.id, req.profileId);
+  const to = await resolveBoxId(to_box_id, req.user.id, req.profileId);
+  const val = Number(amount);
+  if (!from || !to) return res.status(400).json({ error: 'Escolha os caixas de origem e destino' });
+  if (from === to) return res.status(400).json({ error: 'Origem e destino devem ser diferentes' });
+  if (!val || val <= 0) return res.status(400).json({ error: 'Valor inválido' });
+  if (!date) return res.status(400).json({ error: 'Data inválida' });
+  const r = await pool.query(
+    `INSERT INTO transfers(user_id,profile_id,from_box_id,to_box_id,amount,date)
+     VALUES($1,$2,$3,$4,$5,$6)
+     RETURNING id, from_box_id, to_box_id, amount::float AS amount, to_char(date,'YYYY-MM-DD') AS date`,
+    [req.user.id, req.profileId, from, to, val, date]
+  );
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/transfers/:id', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    'DELETE FROM transfers WHERE id=$1 AND user_id=$2 AND profile_id=$3',
+    [req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Transferência não encontrada' });
   res.json({ ok: true });
 });
 
