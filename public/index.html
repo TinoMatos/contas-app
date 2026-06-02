@@ -324,7 +324,6 @@
     <div class="card"><h3>Total Pago</h3><div class="value expense" id="totalExpense">R$ 0,00</div></div>
     <div class="card card-clickable" id="balanceCard" title="Saldo do mês (recebido − pago)"><h3>Saldo do mês</h3><div class="value" id="balance">R$ 0,00</div><div class="card-hint">Toque para ver os caixas</div></div>
     <div class="card card-clickable hidden" id="totalOwnedCard" title="Total somando todos os caixas"><h3>Total que tenho 💼</h3><div class="value balance-positive" id="totalOwnedValue">R$ 0,00</div><div class="card-hint">soma de todos os caixas</div></div>
-    <div class="card"><h3>Transações</h3><div class="value" id="count" style="color:#2a5298">0</div></div>
   </div>
   <div class="panel">
     <h2>Nova Transação</h2>
@@ -790,7 +789,6 @@ function render() {
   const balEl = document.getElementById('balance');
   balEl.textContent = fmt(balance);
   balEl.className = 'value ' + (balance >= 0 ? 'balance-positive' : 'balance-negative');
-  document.getElementById('count').textContent = visible.length;
 
   const info = document.getElementById('monthInfo');
   if (showAll) {
