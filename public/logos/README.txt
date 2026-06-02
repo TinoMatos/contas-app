@@ -18,7 +18,6 @@ Coloque aqui os arquivos PNG das logos. O app procura por estes nomes exatos:
   original.png
   neon.png
   next.png
-  will.png        (Will Bank)
   safra.png
   sicoob.png
   sicredi.png

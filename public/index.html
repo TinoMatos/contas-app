@@ -37,6 +37,7 @@
   .footer-sep { opacity: 0.5; margin: 0 4px; }
   .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 10px; }
   h1 { color: white; font-size: 1.8em; }
+  .brand-icon { height: 1.25em; width: 1.25em; border-radius: 6px; vertical-align: -0.22em; margin-right: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
   .user-info { color: white; display: flex; align-items: center; gap: 12px; }
   .user-info span { font-weight: bold; }
   .btn-logout { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
@@ -262,7 +263,7 @@
 
 <div id="authScreen" class="auth-wrapper">
   <div class="auth-box">
-    <h2>💰 Controle Financeiro</h2>
+    <h2><img src="/icon-192.png" class="brand-icon" alt="">Controle Financeiro</h2>
     <p class="subtitle">Suas finanças, sua conta</p>
     <div class="tabs">
       <div class="tab active" data-tab="login">Entrar</div>
@@ -286,7 +287,7 @@
 
 <div id="appScreen" class="container hidden">
   <div class="header">
-    <h1>💰 Controle Financeiro</h1>
+    <h1><img src="/icon-192.png" class="brand-icon" alt="">Controle Financeiro</h1>
     <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnBio" title="Bloqueio biométrico">🔒</button><button class="btn-logout" id="btnLogout">Sair</button></div>
   </div>
   <div class="profile-bar">
