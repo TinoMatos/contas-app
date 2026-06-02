@@ -322,7 +322,8 @@
   <div class="cards">
     <div class="card"><h3>Total Recebido</h3><div class="value income" id="totalIncome">R$ 0,00</div></div>
     <div class="card"><h3>Total Pago</h3><div class="value expense" id="totalExpense">R$ 0,00</div></div>
-    <div class="card card-clickable" id="balanceCard" title="Ver caixas / onde está o dinheiro"><h3>Saldo 💼</h3><div class="value" id="balance">R$ 0,00</div><div class="card-hint">Toque para ver os caixas</div></div>
+    <div class="card card-clickable" id="balanceCard" title="Saldo do mês (recebido − pago)"><h3>Saldo do mês</h3><div class="value" id="balance">R$ 0,00</div><div class="card-hint">Toque para ver os caixas</div></div>
+    <div class="card card-clickable hidden" id="totalOwnedCard" title="Total somando todos os caixas"><h3>Total que tenho 💼</h3><div class="value balance-positive" id="totalOwnedValue">R$ 0,00</div><div class="card-hint">soma de todos os caixas</div></div>
     <div class="card"><h3>Transações</h3><div class="value" id="count" style="color:#2a5298">0</div></div>
   </div>
   <div class="panel">
@@ -1083,6 +1084,11 @@ function renderBoxSelects() {
   // Dica no card de saldo só aparece quando há caixas
   document.querySelector('#balanceCard .card-hint').textContent =
     hasBoxes ? 'Toque para ver os caixas' : 'Toque para criar um caixa';
+  // Card "Total que tenho" (soma dos caixas) só aparece quando há caixas
+  const total = boxes.reduce((s, b) => s + Number(b.balance), 0);
+  const ownedCard = document.getElementById('totalOwnedCard');
+  ownedCard.classList.toggle('hidden', !hasBoxes);
+  document.getElementById('totalOwnedValue').textContent = fmt(total);
 }
 
 let editingBoxId = null;
@@ -1253,6 +1259,7 @@ function openBoxesModal() {
 }
 
 document.getElementById('balanceCard').addEventListener('click', openBoxesModal);
+document.getElementById('totalOwnedCard').addEventListener('click', openBoxesModal);
 document.getElementById('boxesClose').addEventListener('click', () => {
   document.getElementById('boxesModal').classList.add('hidden');
 });
