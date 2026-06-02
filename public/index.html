@@ -117,6 +117,58 @@
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
   .btn-cancel { background: #95a5a6; }
   .btn-cancel:hover { background: #7f8c8d; }
+  .card-clickable { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+  .card-clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+  .card-hint { font-size: 0.72em; color: #999; margin-top: 6px; }
+  .box-total { background: #f0f4fb; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #2a5298; }
+  .box-total span { font-size: 1.2em; }
+  .box-list { list-style: none; margin-bottom: 15px; }
+  .box-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
+  .box-list .box-name { flex: 1; }
+  .box-list .box-name input { padding: 8px; }
+  .box-list .box-bal { font-weight: bold; white-space: nowrap; }
+  .box-list .box-bal.neg { color: #e74c3c; }
+  .box-list .box-bal.pos { color: #27ae60; }
+  .box-list .box-edit-bal { width: 100px; padding: 8px; }
+  .box-list .box-actions { display: flex; gap: 6px; }
+  .box-list .box-actions button { padding: 6px 10px; font-size: 0.82em; }
+  .box-add-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .box-add-form input[type="text"] { flex: 2; min-width: 140px; }
+  .box-add-form input[type="number"] { flex: 1; min-width: 100px; }
+  .box-empty { text-align: center; color: #999; padding: 20px 0; }
+  .fab-calc {
+    position: fixed; right: 20px; bottom: 20px; z-index: 90;
+    width: 60px; height: 60px; border-radius: 50%; padding: 0;
+    font-size: 1.6em; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab-calc:hover { transform: scale(1.05); }
+  @supports (padding: max(0px)) {
+    .fab-calc { right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); }
+  }
+  .calc-modal { max-width: 340px; }
+  .calc-display {
+    background: #1e2a3a; color: #fff; border-radius: 10px; padding: 18px 16px;
+    text-align: right; margin-bottom: 14px; min-height: 84px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  }
+  .calc-expr { font-size: 1em; color: #9fb3c8; min-height: 20px; word-break: break-all; }
+  .calc-result { font-size: 2em; font-weight: bold; word-break: break-all; }
+  .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .calc-grid button {
+    padding: 16px 0; font-size: 1.25em; background: #eef1f6; color: #2a3a4f;
+    border-radius: 10px; font-weight: 600;
+  }
+  .calc-grid button:hover { background: #dfe5ef; }
+  .calc-grid button.op { background: #2a5298; color: #fff; }
+  .calc-grid button.op:hover { background: #1e3c72; }
+  .calc-grid button.fn { background: #d9534f; color: #fff; }
+  .calc-grid button.fn:hover { background: #c9302c; }
+  .calc-grid button.eq { background: #27ae60; color: #fff; grid-column: span 2; }
+  .calc-grid button.eq:hover { background: #1e8e4e; }
+  .calc-grid button.zero { grid-column: span 2; }
+  .calc-use { width: 100%; margin-top: 12px; background: #f39c12; }
+  .calc-use:hover { background: #d68910; }
   @media (max-width: 700px) {
     form#form { grid-template-columns: 1fr 1fr; }
     .report-grid { grid-template-columns: 1fr; }
@@ -185,7 +237,7 @@
   <div class="cards">
     <div class="card"><h3>Total Recebido</h3><div class="value income" id="totalIncome">R$ 0,00</div></div>
     <div class="card"><h3>Total Pago</h3><div class="value expense" id="totalExpense">R$ 0,00</div></div>
-    <div class="card"><h3>Saldo</h3><div class="value" id="balance">R$ 0,00</div></div>
+    <div class="card card-clickable" id="balanceCard" title="Ver caixas / onde está o dinheiro"><h3>Saldo 💼</h3><div class="value" id="balance">R$ 0,00</div><div class="card-hint">Toque para ver os caixas</div></div>
     <div class="card"><h3>Transações</h3><div class="value" id="count" style="color:#2a5298">0</div></div>
   </div>
   <div class="panel">
@@ -197,12 +249,24 @@
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="amount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="date" required></div>
       <div class="form-group"><label>Tipo</label><select id="type"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
+      <div class="form-group hidden" id="boxFieldNew"><label>Caixa</label><select id="boxSelect"><option value="">— Nenhum —</option></select></div>
       <div class="submit-row">
         <button type="submit">Adicionar</button>
         <label class="recurring-inline"><input type="checkbox" id="recurringCheck"> 🔁 Repetir todo mês</label>
       </div>
     </form>
   </div>
+
+<div id="dueTodayModal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:420px; text-align:center;">
+    <div style="font-size:3em; margin-bottom:10px;">⏰</div>
+    <h2 style="color:#e74c3c;">Contas vencem hoje!</h2>
+    <div id="dueTodayList" style="margin:15px 0; text-align:left;"></div>
+    <div class="modal-actions" style="justify-content:center;">
+      <button type="button" id="btnDueTodayClose">Ok, vi</button>
+    </div>
+  </div>
+</div>
 
   <div class="panel" id="remindersPanel" style="display:none;">
     <h2>🔔 Lembretes deste mês</h2>
@@ -233,6 +297,58 @@
     <span class="footer-sep">·</span>
     <a href="#" id="iosInstallLink">🍎 Instalar no iPhone</a>
   </footer>
+  <button type="button" class="fab-calc" id="btnCalc" title="Calculadora">🧮</button>
+</div>
+
+<div id="calcModal" class="modal-overlay hidden">
+  <div class="modal calc-modal">
+    <h2>🧮 Calculadora</h2>
+    <div class="calc-display">
+      <div class="calc-expr" id="calcExpr"></div>
+      <div class="calc-result" id="calcResult">0</div>
+    </div>
+    <div class="calc-grid" id="calcGrid">
+      <button type="button" class="fn" data-act="clear">C</button>
+      <button type="button" class="fn" data-act="back">⌫</button>
+      <button type="button" class="op" data-val="/">÷</button>
+      <button type="button" class="op" data-val="*">×</button>
+      <button type="button" data-val="7">7</button>
+      <button type="button" data-val="8">8</button>
+      <button type="button" data-val="9">9</button>
+      <button type="button" class="op" data-val="-">−</button>
+      <button type="button" data-val="4">4</button>
+      <button type="button" data-val="5">5</button>
+      <button type="button" data-val="6">6</button>
+      <button type="button" class="op" data-val="+">+</button>
+      <button type="button" data-val="1">1</button>
+      <button type="button" data-val="2">2</button>
+      <button type="button" data-val="3">3</button>
+      <button type="button" data-val=".">,</button>
+      <button type="button" class="zero" data-val="0">0</button>
+      <button type="button" class="eq" data-act="equals">=</button>
+    </div>
+    <button type="button" class="calc-use" id="calcUse">Usar no campo Valor</button>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="calcClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="boxesModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>💼 Meus Caixas</h2>
+    <p style="color:#666; font-size:0.9em; margin-bottom:15px;">Cadastre onde está seu dinheiro (bancos, carteira...). Ao registrar um pagamento ou recebimento, você poderá escolher de qual caixa saiu ou entrou.</p>
+    <div class="box-total" id="boxesTotal"></div>
+    <ul class="box-list" id="boxList"></ul>
+    <form id="addBoxForm" class="box-add-form">
+      <input type="text" id="newBoxName" placeholder="Nome (ex: Banco do Brasil)" maxlength="40" required>
+      <input type="number" id="newBoxBalance" step="0.01" placeholder="Saldo atual" value="0">
+      <button type="submit">Adicionar</button>
+    </form>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="boxesClose">Fechar</button>
+    </div>
+  </div>
 </div>
 
 <div id="recurringModal" class="modal-overlay hidden">
@@ -280,6 +396,7 @@
       <div class="form-group"><label>Valor (R$)</label><input type="number" id="editAmount" step="0.01" min="0.01" required></div>
       <div class="form-group"><label>Data</label><input type="date" id="editDate" required></div>
       <div class="form-group"><label>Tipo</label><select id="editType"><option value="income">Recebido</option><option value="expense">Pago</option></select></div>
+      <div class="form-group hidden" id="boxFieldEdit"><label>Caixa</label><select id="editBoxSelect"><option value="">— Nenhum —</option></select></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="editCancel">Cancelar</button>
         <button type="submit">Salvar</button>
@@ -306,6 +423,7 @@ const USER_KEY = 'fin_user';
 const PROFILE_KEY = 'fin_profile';
 let transactions = [];
 let recurring = [];
+let boxes = [];
 let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
@@ -394,6 +512,7 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   localStorage.removeItem(PROFILE_KEY);
   transactions = [];
   recurring = [];
+  boxes = [];
   profiles = [];
   currentProfileId = null;
   document.getElementById('appScreen').classList.add('hidden');
@@ -519,9 +638,11 @@ document.getElementById('btnAllMonths').addEventListener('click', () => {
 
 async function reload() {
   try {
-    [transactions, recurring] = await Promise.all([api('/transactions'), api('/recurring')]);
+    [transactions, recurring, boxes] = await Promise.all([api('/transactions'), api('/recurring'), api('/boxes')]);
     render();
     renderReminders();
+    renderBoxSelects();
+    maybeShowDueTodayAlert();
   } catch (e) {
     if (e.message.includes('Token') || e.message.includes('Sem token')) {
       document.getElementById('btnLogout').click();
@@ -610,6 +731,7 @@ function openEdit(id) {
   document.getElementById('editAmount').value = t.amount;
   document.getElementById('editDate').value = t.date;
   document.getElementById('editType').value = t.type;
+  document.getElementById('editBoxSelect').value = t.box_id ? String(t.box_id) : '';
   document.getElementById('editModal').classList.remove('hidden');
 }
 
@@ -642,7 +764,8 @@ document.getElementById('editForm').addEventListener('submit', async e => {
         category: document.getElementById('editCategory').value.trim(),
         amount: parseFloat(document.getElementById('editAmount').value),
         type: document.getElementById('editType').value,
-        date: document.getElementById('editDate').value
+        date: document.getElementById('editDate').value,
+        box_id: document.getElementById('editBoxSelect').value || null
       })
     });
     document.getElementById('editModal').classList.add('hidden');
@@ -666,10 +789,11 @@ document.getElementById('form').addEventListener('submit', async e => {
     const amount = parseFloat(document.getElementById('amount').value);
     const type = document.getElementById('type').value;
     const date = document.getElementById('date').value;
+    const box_id = document.getElementById('boxSelect').value || null;
     const isRecurring = document.getElementById('recurringCheck').checked;
     await api('/transactions', {
       method: 'POST',
-      body: JSON.stringify({ desc, category, amount, type, date })
+      body: JSON.stringify({ desc, category, amount, type, date, box_id })
     });
     if (isRecurring) {
       const day = parseInt(date.split('-')[2], 10);
@@ -711,7 +835,7 @@ function pendingReminders() {
   const m = today.getMonth() + 1;
   const monthPrefix = `${y}-${String(m).padStart(2,'0')}`;
   return recurring.filter(r => {
-    if (today.getDate() < r.day_of_month) return false;
+    if (today.getDate() < r.day_of_month - 3) return false;
     const paid = transactions.some(t =>
       (t.date || '').startsWith(monthPrefix) &&
       t.type === r.type &&
@@ -719,6 +843,28 @@ function pendingReminders() {
     );
     return !paid;
   });
+}
+
+function maybeShowDueTodayAlert() {
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+  const dueToday = pendingReminders().filter(r => r.day_of_month === today.getDate());
+  if (dueToday.length === 0) return;
+  if (localStorage.getItem('dueTodayDismissed') === todayKey) return;
+  const list = document.getElementById('dueTodayList');
+  list.innerHTML = dueToday.map(r => `
+    <div class="reminder ${r.type}" style="margin-bottom:6px;">
+      <div class="reminder-info">
+        <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
+        <div class="reminder-meta">${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('dueTodayModal').classList.remove('hidden');
+  document.getElementById('btnDueTodayClose').onclick = () => {
+    localStorage.setItem('dueTodayDismissed', todayKey);
+    document.getElementById('dueTodayModal').classList.add('hidden');
+  };
 }
 
 function renderReminders() {
@@ -787,6 +933,186 @@ document.getElementById('btnManageRecurring').addEventListener('click', () => {
 function openManageRecurring() { document.getElementById('btnManageRecurring').click(); }
 document.getElementById('closeRecurringModal').addEventListener('click', () => {
   document.getElementById('recurringModal').classList.add('hidden');
+});
+
+// ---- Caixas (carteiras) ----
+function renderBoxSelects() {
+  const hasBoxes = boxes.length > 0;
+  const opts = '<option value="">— Nenhum —</option>' +
+    boxes.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  const newSel = document.getElementById('boxSelect');
+  const editSel = document.getElementById('editBoxSelect');
+  const newVal = newSel.value, editVal = editSel.value;
+  newSel.innerHTML = opts; editSel.innerHTML = opts;
+  newSel.value = newVal; editSel.value = editVal;
+  document.getElementById('boxFieldNew').classList.toggle('hidden', !hasBoxes);
+  document.getElementById('boxFieldEdit').classList.toggle('hidden', !hasBoxes);
+  // Dica no card de saldo só aparece quando há caixas
+  document.querySelector('#balanceCard .card-hint').textContent =
+    hasBoxes ? 'Toque para ver os caixas' : 'Toque para criar um caixa';
+}
+
+function renderBoxList() {
+  const ul = document.getElementById('boxList');
+  const totalEl = document.getElementById('boxesTotal');
+  if (boxes.length === 0) {
+    ul.innerHTML = '<li class="box-empty">Nenhum caixa ainda. Adicione abaixo onde está seu dinheiro.</li>';
+    totalEl.innerHTML = '';
+    return;
+  }
+  const total = boxes.reduce((s, b) => s + Number(b.balance), 0);
+  totalEl.innerHTML = `<span>Total nos caixas</span><span>${fmt(total)}</span>`;
+  ul.innerHTML = boxes.map(b => `
+    <li data-id="${b.id}">
+      <span class="box-name"><input type="text" class="b-name" value="${escapeHtml(b.name)}" maxlength="40"></span>
+      <input type="number" step="0.01" class="box-edit-bal b-init" value="${Number(b.initial_balance).toFixed(2)}" title="Saldo inicial">
+      <span class="box-bal ${Number(b.balance) < 0 ? 'neg' : 'pos'}" title="Saldo atual (inicial + recebimentos − pagamentos)">${fmt(b.balance)}</span>
+      <span class="box-actions">
+        <button type="button" class="btn-mini" onclick="saveBox(${b.id})">Salvar</button>
+        <button type="button" class="btn-delete" onclick="deleteBox(${b.id})">Excluir</button>
+      </span>
+    </li>`).join('');
+}
+
+function openBoxesModal() {
+  renderBoxList();
+  document.getElementById('boxesModal').classList.remove('hidden');
+}
+
+document.getElementById('balanceCard').addEventListener('click', openBoxesModal);
+document.getElementById('boxesClose').addEventListener('click', () => {
+  document.getElementById('boxesModal').classList.add('hidden');
+});
+
+document.getElementById('addBoxForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('newBoxName').value.trim();
+  const initial_balance = parseFloat(document.getElementById('newBoxBalance').value) || 0;
+  if (!name) return;
+  try {
+    await api('/boxes', { method: 'POST', body: JSON.stringify({ name, initial_balance }) });
+    document.getElementById('newBoxName').value = '';
+    document.getElementById('newBoxBalance').value = '0';
+    await reload();
+    renderBoxList();
+  } catch (e) { alert(e.message); }
+});
+
+window.saveBox = async function(id) {
+  const li = document.querySelector(`#boxList li[data-id="${id}"]`);
+  const name = li.querySelector('.b-name').value.trim();
+  const initial_balance = parseFloat(li.querySelector('.b-init').value) || 0;
+  if (!name) { alert('Dê um nome ao caixa.'); return; }
+  try {
+    await api('/boxes/' + id, { method: 'PUT', body: JSON.stringify({ name, initial_balance }) });
+    await reload();
+    renderBoxList();
+  } catch (e) { alert(e.message); }
+};
+
+window.deleteBox = async function(id) {
+  if (!confirm('Excluir este caixa? As transações ligadas a ele continuam, mas deixam de ter caixa.')) return;
+  try {
+    await api('/boxes/' + id, { method: 'DELETE' });
+    await reload();
+    renderBoxList();
+  } catch (e) { alert(e.message); }
+};
+
+// ---- Calculadora embutida (funciona em Windows, iPhone e Android) ----
+let calcExpr = '';
+
+function calcEvaluate(expr) {
+  const tokens = expr.match(/(\d+\.?\d*)|[+\-*/]/g);
+  if (!tokens || tokens.length === 0) return null;
+  const out = [], ops = [], prec = { '+': 1, '-': 1, '*': 2, '/': 2 };
+  for (const t of tokens) {
+    if (/[\d.]/.test(t)) out.push(parseFloat(t));
+    else { while (ops.length && prec[ops[ops.length - 1]] >= prec[t]) out.push(ops.pop()); ops.push(t); }
+  }
+  while (ops.length) out.push(ops.pop());
+  const st = [];
+  for (const t of out) {
+    if (typeof t === 'number') st.push(t);
+    else { const b = st.pop(), a = st.pop(); if (a === undefined || b === undefined) return null;
+      st.push(t === '+' ? a + b : t === '-' ? a - b : t === '*' ? a * b : a / b); }
+  }
+  const r = st[0];
+  return (r === undefined || !isFinite(r)) ? null : r;
+}
+
+function calcRender() {
+  document.getElementById('calcExpr').textContent = calcExpr.replace(/\*/g, ' × ').replace(/\//g, ' ÷ ').replace(/([+\-])/g, ' $1 ').trim();
+  const r = calcEvaluate(calcExpr);
+  document.getElementById('calcResult').textContent = r === null ? (calcExpr ? '…' : '0') : fmtNum(r);
+}
+
+function fmtNum(n) {
+  return Number(n.toFixed(2)).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+function calcPush(v) {
+  const last = calcExpr.slice(-1);
+  if ('+-*/'.includes(v)) {
+    if (calcExpr === '') { if (v === '-') calcExpr = '-'; return calcRender(); }
+    if ('+-*/'.includes(last)) calcExpr = calcExpr.slice(0, -1); // troca operador
+    calcExpr += v;
+  } else if (v === '.') {
+    const seg = calcExpr.split(/[+\-*/]/).pop();
+    if (seg.includes('.')) return;
+    calcExpr += (calcExpr === '' || '+-*/'.includes(last)) ? '0.' : '.';
+  } else {
+    calcExpr += v;
+  }
+  calcRender();
+}
+
+function calcEquals() {
+  const r = calcEvaluate(calcExpr);
+  if (r === null) return;
+  calcExpr = String(Number(r.toFixed(2)));
+  calcRender();
+}
+
+document.getElementById('calcGrid').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (btn.dataset.val !== undefined) calcPush(btn.dataset.val);
+  else if (btn.dataset.act === 'clear') { calcExpr = ''; calcRender(); }
+  else if (btn.dataset.act === 'back') { calcExpr = calcExpr.slice(0, -1); calcRender(); }
+  else if (btn.dataset.act === 'equals') calcEquals();
+});
+
+document.getElementById('btnCalc').addEventListener('click', () => {
+  // se o campo Valor já tem número, começa a partir dele
+  const cur = document.getElementById('amount').value;
+  calcExpr = (cur && !isNaN(parseFloat(cur))) ? String(parseFloat(cur)) : '';
+  calcRender();
+  document.getElementById('calcModal').classList.remove('hidden');
+});
+
+document.getElementById('calcClose').addEventListener('click', () => {
+  document.getElementById('calcModal').classList.add('hidden');
+});
+
+document.getElementById('calcUse').addEventListener('click', () => {
+  const r = calcEvaluate(calcExpr);
+  if (r === null) { alert('Faça um cálculo primeiro.'); return; }
+  document.getElementById('amount').value = Number(r.toFixed(2));
+  document.getElementById('calcModal').classList.add('hidden');
+  document.getElementById('amount').focus();
+});
+
+// Suporte a teclado quando a calculadora está aberta (útil no Windows)
+document.addEventListener('keydown', e => {
+  if (document.getElementById('calcModal').classList.contains('hidden')) return;
+  if (/[0-9]/.test(e.key)) calcPush(e.key);
+  else if ('+-*/'.includes(e.key)) calcPush(e.key);
+  else if (e.key === '.' || e.key === ',') calcPush('.');
+  else if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); calcEquals(); }
+  else if (e.key === 'Backspace') { calcExpr = calcExpr.slice(0, -1); calcRender(); }
+  else if (e.key === 'Escape') document.getElementById('calcModal').classList.add('hidden');
+  else if (e.key.toLowerCase() === 'c') { calcExpr = ''; calcRender(); }
 });
 
 function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }

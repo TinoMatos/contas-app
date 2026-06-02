@@ -58,6 +58,17 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_recurring_profile ON recurring_bills(profile_id);
+    CREATE TABLE IF NOT EXISTS cash_boxes (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      initial_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_boxes_profile ON cash_boxes(profile_id);
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS idx_tx_box ON transactions(box_id);
   `);
 
   // Backfill: cria perfil "Principal" para cada usuário que ainda não tem,
@@ -185,9 +196,18 @@ app.delete('/api/profiles/:id', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Valida que o caixa (opcional) pertence ao usuário/perfil. Retorna o id ou null.
+async function resolveBoxId(rawBoxId, userId, profileId) {
+  if (rawBoxId === undefined || rawBoxId === null || rawBoxId === '') return null;
+  const bid = parseInt(rawBoxId, 10);
+  if (!bid) return null;
+  const r = await pool.query('SELECT id FROM cash_boxes WHERE id=$1 AND user_id=$2 AND profile_id=$3', [bid, userId, profileId]);
+  return r.rowCount === 0 ? null : bid;
+}
+
 app.get('/api/transactions', auth, resolveProfile, async (req, res) => {
   const r = await pool.query(
-    `SELECT id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date
+    `SELECT id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date, box_id
      FROM transactions WHERE user_id=$1 AND profile_id=$2 ORDER BY date DESC, id DESC`,
     [req.user.id, req.profileId]
   );
@@ -195,27 +215,29 @@ app.get('/api/transactions', auth, resolveProfile, async (req, res) => {
 });
 
 app.post('/api/transactions', auth, resolveProfile, async (req, res) => {
-  const { desc, category, amount, type, date } = req.body || {};
+  const { desc, category, amount, type, date, box_id } = req.body || {};
   if (!desc || !amount || !type || !date) return res.status(400).json({ error: 'Dados inválidos' });
   if (!['income','expense'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  const boxId = await resolveBoxId(box_id, req.user.id, req.profileId);
   const r = await pool.query(
-    `INSERT INTO transactions(user_id,profile_id,description,category,amount,type,date)
-     VALUES($1,$2,$3,$4,$5,$6,$7)
-     RETURNING id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date`,
-    [req.user.id, req.profileId, String(desc).trim(), category ? String(category).trim() : null, amount, type, date]
+    `INSERT INTO transactions(user_id,profile_id,description,category,amount,type,date,box_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date, box_id`,
+    [req.user.id, req.profileId, String(desc).trim(), category ? String(category).trim() : null, amount, type, date, boxId]
   );
   res.json(r.rows[0]);
 });
 
 app.put('/api/transactions/:id', auth, resolveProfile, async (req, res) => {
-  const { desc, category, amount, type, date } = req.body || {};
+  const { desc, category, amount, type, date, box_id } = req.body || {};
   if (!desc || !amount || !type || !date) return res.status(400).json({ error: 'Dados inválidos' });
   if (!['income','expense'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  const boxId = await resolveBoxId(box_id, req.user.id, req.profileId);
   const r = await pool.query(
-    `UPDATE transactions SET description=$1, category=$2, amount=$3, type=$4, date=$5
-     WHERE id=$6 AND user_id=$7 AND profile_id=$8
-     RETURNING id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date`,
-    [String(desc).trim(), category ? String(category).trim() : null, amount, type, date, req.params.id, req.user.id, req.profileId]
+    `UPDATE transactions SET description=$1, category=$2, amount=$3, type=$4, date=$5, box_id=$6
+     WHERE id=$7 AND user_id=$8 AND profile_id=$9
+     RETURNING id, description AS desc, category, amount::float AS amount, type, to_char(date,'YYYY-MM-DD') AS date, box_id`,
+    [String(desc).trim(), category ? String(category).trim() : null, amount, type, date, boxId, req.params.id, req.user.id, req.profileId]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
   res.json(r.rows[0]);
@@ -259,6 +281,64 @@ app.delete('/api/recurring/:id', auth, resolveProfile, async (req, res) => {
     [req.params.id, req.user.id, req.profileId]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
+  res.json({ ok: true });
+});
+
+// ---- Caixas (carteiras: bancos, dinheiro, etc) ----
+// O saldo de cada caixa = saldo inicial + recebimentos - pagamentos atribuídos a ele.
+app.get('/api/boxes', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    `SELECT b.id, b.name, b.initial_balance::float AS initial_balance,
+            (b.initial_balance
+              + COALESCE(SUM(CASE WHEN t.type='income' THEN t.amount ELSE 0 END),0)
+              - COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END),0))::float AS balance
+     FROM cash_boxes b
+     LEFT JOIN transactions t ON t.box_id = b.id
+     WHERE b.user_id=$1 AND b.profile_id=$2
+     GROUP BY b.id
+     ORDER BY b.id ASC`,
+    [req.user.id, req.profileId]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/boxes', auth, resolveProfile, async (req, res) => {
+  const { name, initial_balance } = req.body || {};
+  const n = String(name || '').trim();
+  if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
+  if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
+  const init = Number(initial_balance) || 0;
+  const r = await pool.query(
+    `INSERT INTO cash_boxes(user_id,profile_id,name,initial_balance)
+     VALUES($1,$2,$3,$4)
+     RETURNING id, name, initial_balance::float AS initial_balance, initial_balance::float AS balance`,
+    [req.user.id, req.profileId, n, init]
+  );
+  res.json(r.rows[0]);
+});
+
+app.put('/api/boxes/:id', auth, resolveProfile, async (req, res) => {
+  const { name, initial_balance } = req.body || {};
+  const n = String(name || '').trim();
+  if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
+  if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
+  const init = Number(initial_balance) || 0;
+  const r = await pool.query(
+    `UPDATE cash_boxes SET name=$1, initial_balance=$2
+     WHERE id=$3 AND user_id=$4 AND profile_id=$5
+     RETURNING id, name, initial_balance::float AS initial_balance`,
+    [n, init, req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Caixa não encontrado' });
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/boxes/:id', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    'DELETE FROM cash_boxes WHERE id=$1 AND user_id=$2 AND profile_id=$3',
+    [req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Caixa não encontrado' });
   res.json({ ok: true });
 });
 
