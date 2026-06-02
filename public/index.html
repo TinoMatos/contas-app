@@ -134,6 +134,13 @@
     display: flex; align-items: center; gap: 10px; padding: 12px 14px;
     background: #f8f9fb; border: 1px solid #eef0f4; border-radius: 10px;
   }
+  .box-avatar {
+    flex: 0 0 42px; width: 42px; height: 42px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 0.95em; letter-spacing: 0.3px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .box-avatar.emoji { font-size: 1.35em; }
   .box-card-main { flex: 1; min-width: 0; }
   .box-card-name { display: block; font-weight: 600; color: #2a3a4f; }
   .box-card-bal { display: block; font-size: 1.15em; font-weight: bold; margin-top: 2px; }
@@ -410,6 +417,7 @@
         <div class="form-group">
           <label>Nome do caixa</label>
           <input type="text" id="newBoxName" placeholder="Ex: Banco do Brasil, Carteira..." maxlength="40" required>
+          <small style="color:#999; font-size:0.8em;">Use o nome do banco (Bradesco, C6, Nubank, BB...) ou "Dinheiro" para aparecer o ícone colorido.</small>
         </div>
         <div class="form-group">
           <label>Saldo atual (R$)</label>
@@ -1032,6 +1040,49 @@ function renderBoxSelects() {
 
 let editingBoxId = null;
 
+// Identidade visual por banco: cor da marca + sigla (ou emoji para dinheiro).
+const BANK_BRANDS = [
+  { kw: ['dinheiro', 'carteira', 'espécie', 'especie', 'cash', 'vivo', 'em maos', 'em mãos'], emoji: '💵', bg: '#27ae60' },
+  { kw: ['poupança', 'poupanca', 'cofre', 'reserva'], emoji: '🐷', bg: '#e84393' },
+  { kw: ['bradesco'], label: 'B', bg: '#CC092F' },
+  { kw: ['banco do brasil', 'brasil', ' bb', 'bb '], label: 'BB', bg: '#0033A0' },
+  { kw: ['brb'], label: 'BRB', bg: '#0067B1' },
+  { kw: ['c6'], label: 'C6', bg: '#1C1C1C' },
+  { kw: ['nubank', 'nu '], label: 'Nu', bg: '#820AD1' },
+  { kw: ['itau', 'itaú'], label: 'Itaú', bg: '#EC7000' },
+  { kw: ['santander'], label: 'S', bg: '#EC0000' },
+  { kw: ['caixa'], label: 'CEF', bg: '#0070B8' },
+  { kw: ['inter'], label: 'I', bg: '#FF7A00' },
+  { kw: ['picpay'], label: 'PP', bg: '#11C76F' },
+  { kw: ['mercado', ' mp', 'mpago'], label: 'MP', bg: '#00B1EA' },
+  { kw: ['pagbank', 'pagseguro', 'pagpag'], label: 'Pag', bg: '#11A557' },
+  { kw: ['original'], label: 'O', bg: '#00A859' },
+  { kw: ['neon'], label: 'Ne', bg: '#00C6CF' },
+  { kw: ['next'], label: 'Nx', bg: '#00C49A' },
+  { kw: ['will'], label: 'W', bg: '#F5B700' },
+  { kw: ['safra'], label: 'Sf', bg: '#1B2A4A' },
+  { kw: ['sicoob'], label: 'Sc', bg: '#003641' },
+  { kw: ['sicredi'], label: 'Sr', bg: '#3DAE2B' },
+  { kw: ['banrisul'], label: 'Br', bg: '#0A5BA0' },
+  { kw: ['paypal'], label: 'PP', bg: '#003087' },
+];
+
+function boxAvatar(name) {
+  const n = (' ' + (name || '').toLowerCase() + ' ');
+  for (const b of BANK_BRANDS) {
+    if (b.kw.some(k => n.includes(k))) {
+      if (b.emoji) return `<span class="box-avatar emoji" style="background:${b.bg}">${b.emoji}</span>`;
+      return `<span class="box-avatar" style="background:${b.bg}">${b.label}</span>`;
+    }
+  }
+  // Banco desconhecido: primeira letra com uma cor estável
+  const palette = ['#2a5298', '#8e44ad', '#16a085', '#d35400', '#2c3e50', '#c0392b', '#2980b9'];
+  let h = 0;
+  for (const c of n) h = (h + c.charCodeAt(0)) % palette.length;
+  const letter = (name || '?').trim().charAt(0).toUpperCase() || '🏦';
+  return `<span class="box-avatar" style="background:${palette[h]}">${escapeHtml(letter)}</span>`;
+}
+
 function renderBoxList() {
   const ul = document.getElementById('boxList');
   const totalEl = document.getElementById('boxesTotal');
@@ -1055,6 +1106,7 @@ function renderBoxList() {
     }
     return `
       <li class="box-card" data-id="${b.id}">
+        ${boxAvatar(b.name)}
         <div class="box-card-main">
           <span class="box-card-name">${escapeHtml(b.name)}</span>
           <span class="box-card-bal ${Number(b.balance) < 0 ? 'neg' : 'pos'}">${fmt(b.balance)}</span>
