@@ -120,22 +120,38 @@
   .card-clickable { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
   .card-clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
   .card-hint { font-size: 0.72em; color: #999; margin-top: 6px; }
-  .box-total { background: #f0f4fb; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #2a5298; }
-  .box-total span { font-size: 1.2em; }
-  .box-list { list-style: none; margin-bottom: 15px; }
-  .box-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
-  .box-list .box-name { flex: 1; }
-  .box-list .box-name input { padding: 8px; }
-  .box-list .box-bal { font-weight: bold; white-space: nowrap; }
-  .box-list .box-bal.neg { color: #e74c3c; }
-  .box-list .box-bal.pos { color: #27ae60; }
-  .box-list .box-edit-bal { width: 100px; padding: 8px; }
-  .box-list .box-actions { display: flex; gap: 6px; }
-  .box-list .box-actions button { padding: 6px 10px; font-size: 0.82em; }
-  .box-add-form { display: flex; gap: 8px; flex-wrap: wrap; }
-  .box-add-form input[type="text"] { flex: 2; min-width: 140px; }
-  .box-add-form input[type="number"] { flex: 1; min-width: 100px; }
-  .box-empty { text-align: center; color: #999; padding: 20px 0; }
+  .box-intro { color: #666; font-size: 0.9em; margin-bottom: 15px; }
+  .box-total {
+    background: linear-gradient(135deg, #1e3c72, #2a5298); color: #fff;
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 4px 12px rgba(42,82,152,0.3);
+  }
+  .box-total .bt-label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85; }
+  .box-total .bt-value { font-size: 1.5em; font-weight: bold; }
+  .box-list { list-style: none; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; }
+  .box-card {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    background: #f8f9fb; border: 1px solid #eef0f4; border-radius: 10px;
+  }
+  .box-card-main { flex: 1; min-width: 0; }
+  .box-card-name { display: block; font-weight: 600; color: #2a3a4f; }
+  .box-card-bal { display: block; font-size: 1.15em; font-weight: bold; margin-top: 2px; }
+  .box-card-bal.neg { color: #e74c3c; }
+  .box-card-bal.pos { color: #27ae60; }
+  .icon-btn { background: #eef1f6; color: #2a3a4f; padding: 8px 10px; font-size: 1em; border-radius: 8px; }
+  .icon-btn:hover { background: #dfe5ef; }
+  .icon-btn.danger { background: #fdecea; }
+  .icon-btn.danger:hover { background: #f9d7d2; }
+  .box-card.editing { flex-wrap: wrap; }
+  .box-card .b-name { flex: 1 1 100%; padding: 9px; }
+  .box-card .b-init { flex: 1; min-width: 110px; padding: 9px; }
+  .box-card-edit-actions { display: flex; gap: 6px; }
+  .box-card-edit-actions button { padding: 8px 12px; font-size: 0.85em; }
+  .btn-add-box { width: 100%; background: #27ae60; margin-bottom: 4px; }
+  .btn-add-box:hover { background: #1e8e4e; }
+  .box-add-form .form-group { margin-bottom: 14px; }
+  .box-empty { text-align: center; color: #999; padding: 24px 0; }
   .fab-calc {
     position: fixed; right: 20px; bottom: 20px; z-index: 90;
     width: 60px; height: 60px; border-radius: 50%; padding: 0;
@@ -204,6 +220,29 @@
       display: flex; flex-direction: column; gap: 6px;
     }
     #historyTable td.actions button { padding: 6px 12px; font-size: 0.8em; min-width: 70px; }
+  }
+  @media (max-width: 560px) {
+    body { padding: 12px; }
+    .modal-overlay { padding: 10px; align-items: flex-start; padding-top: 24px; overflow-y: auto; }
+    .modal { padding: 20px 16px; max-height: 92vh; overflow-y: auto; }
+    .modal h2 { font-size: 1.25em; }
+    .box-intro { font-size: 0.85em; }
+    .box-total { padding: 14px; }
+    .box-total .bt-value { font-size: 1.3em; }
+    .box-list { max-height: none; }
+    .box-card { padding: 11px 12px; gap: 8px; }
+    .box-card-name { font-size: 0.95em; }
+    .box-card-bal { font-size: 1.05em; }
+    .icon-btn { padding: 8px 10px; }
+    .box-card.editing { gap: 8px; }
+    .box-card .b-init { flex: 1 1 100%; min-width: 0; }
+    .box-card-edit-actions { width: 100%; }
+    .box-card-edit-actions button { flex: 1; }
+    .calc-modal { max-width: 100%; }
+    .calc-grid { gap: 7px; }
+    .calc-grid button { padding: 15px 0; font-size: 1.2em; }
+    #calcModal.calc-min .modal { max-width: 200px; }
+    .card-hint { font-size: 0.7em; }
   }
 </style>
 </head>
@@ -357,16 +396,30 @@
 <div id="boxesModal" class="modal-overlay hidden">
   <div class="modal">
     <h2>💼 Meus Caixas</h2>
-    <p style="color:#666; font-size:0.9em; margin-bottom:15px;">Cadastre onde está seu dinheiro (bancos, carteira...). Ao registrar um pagamento ou recebimento, você poderá escolher de qual caixa saiu ou entrou.</p>
-    <div class="box-total" id="boxesTotal"></div>
-    <ul class="box-list" id="boxList"></ul>
-    <form id="addBoxForm" class="box-add-form">
-      <input type="text" id="newBoxName" placeholder="Nome (ex: Banco do Brasil)" maxlength="40" required>
-      <input type="number" id="newBoxBalance" step="0.01" placeholder="Saldo atual" value="0">
-      <button type="submit">Adicionar</button>
-    </form>
-    <div class="modal-actions">
-      <button type="button" class="btn-cancel" id="boxesClose">Fechar</button>
+    <div id="boxesListView">
+      <p class="box-intro">Onde está seu dinheiro (bancos, carteira...). Ao registrar uma transação, você pode escolher de qual caixa saiu ou entrou.</p>
+      <div class="box-total" id="boxesTotal"></div>
+      <ul class="box-list" id="boxList"></ul>
+      <button type="button" class="btn-add-box" id="btnShowAddBox">+ Novo caixa</button>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="boxesClose">Fechar</button>
+      </div>
+    </div>
+    <div id="boxesAddView" class="hidden">
+      <form id="addBoxForm">
+        <div class="form-group">
+          <label>Nome do caixa</label>
+          <input type="text" id="newBoxName" placeholder="Ex: Banco do Brasil, Carteira..." maxlength="40" required>
+        </div>
+        <div class="form-group">
+          <label>Saldo atual (R$)</label>
+          <input type="number" id="newBoxBalance" step="0.01" placeholder="0,00" value="0">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="btnCancelAddBox">Voltar</button>
+          <button type="submit">Adicionar caixa</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -977,29 +1030,49 @@ function renderBoxSelects() {
     hasBoxes ? 'Toque para ver os caixas' : 'Toque para criar um caixa';
 }
 
+let editingBoxId = null;
+
 function renderBoxList() {
   const ul = document.getElementById('boxList');
   const totalEl = document.getElementById('boxesTotal');
+  const total = boxes.reduce((s, b) => s + Number(b.balance), 0);
+  totalEl.innerHTML = `<span class="bt-label">Total nos caixas</span><span class="bt-value">${fmt(total)}</span>`;
   if (boxes.length === 0) {
-    ul.innerHTML = '<li class="box-empty">Nenhum caixa ainda. Adicione abaixo onde está seu dinheiro.</li>';
-    totalEl.innerHTML = '';
+    ul.innerHTML = '<li class="box-empty">Nenhum caixa ainda.<br>Toque em "+ Novo caixa" para começar.</li>';
     return;
   }
-  const total = boxes.reduce((s, b) => s + Number(b.balance), 0);
-  totalEl.innerHTML = `<span>Total nos caixas</span><span>${fmt(total)}</span>`;
-  ul.innerHTML = boxes.map(b => `
-    <li data-id="${b.id}">
-      <span class="box-name"><input type="text" class="b-name" value="${escapeHtml(b.name)}" maxlength="40"></span>
-      <input type="number" step="0.01" class="box-edit-bal b-init" value="${Number(b.initial_balance).toFixed(2)}" title="Saldo inicial">
-      <span class="box-bal ${Number(b.balance) < 0 ? 'neg' : 'pos'}" title="Saldo atual (inicial + recebimentos − pagamentos)">${fmt(b.balance)}</span>
-      <span class="box-actions">
-        <button type="button" class="btn-mini" onclick="saveBox(${b.id})">Salvar</button>
-        <button type="button" class="btn-delete" onclick="deleteBox(${b.id})">Excluir</button>
-      </span>
-    </li>`).join('');
+  ul.innerHTML = boxes.map(b => {
+    if (b.id === editingBoxId) {
+      return `
+        <li class="box-card editing" data-id="${b.id}">
+          <input type="text" class="b-name" value="${escapeHtml(b.name)}" maxlength="40" placeholder="Nome">
+          <input type="number" step="0.01" class="b-init" value="${Number(b.initial_balance).toFixed(2)}" placeholder="Saldo">
+          <span class="box-card-edit-actions">
+            <button type="button" class="btn-mini" onclick="saveBox(${b.id})">Salvar</button>
+            <button type="button" class="btn-cancel btn-mini" onclick="cancelEditBox()">Cancelar</button>
+          </span>
+        </li>`;
+    }
+    return `
+      <li class="box-card" data-id="${b.id}">
+        <div class="box-card-main">
+          <span class="box-card-name">${escapeHtml(b.name)}</span>
+          <span class="box-card-bal ${Number(b.balance) < 0 ? 'neg' : 'pos'}">${fmt(b.balance)}</span>
+        </div>
+        <button type="button" class="icon-btn" title="Editar" onclick="startEditBox(${b.id})">✏️</button>
+        <button type="button" class="icon-btn danger" title="Excluir" onclick="deleteBox(${b.id})">🗑️</button>
+      </li>`;
+  }).join('');
+}
+
+function showBoxView(which) {
+  document.getElementById('boxesListView').classList.toggle('hidden', which !== 'list');
+  document.getElementById('boxesAddView').classList.toggle('hidden', which !== 'add');
 }
 
 function openBoxesModal() {
+  editingBoxId = null;
+  showBoxView('list');
   renderBoxList();
   document.getElementById('boxesModal').classList.remove('hidden');
 }
@@ -1009,6 +1082,14 @@ document.getElementById('boxesClose').addEventListener('click', () => {
   document.getElementById('boxesModal').classList.add('hidden');
 });
 
+document.getElementById('btnShowAddBox').addEventListener('click', () => {
+  document.getElementById('newBoxName').value = '';
+  document.getElementById('newBoxBalance').value = '0';
+  showBoxView('add');
+  document.getElementById('newBoxName').focus();
+});
+document.getElementById('btnCancelAddBox').addEventListener('click', () => showBoxView('list'));
+
 document.getElementById('addBoxForm').addEventListener('submit', async e => {
   e.preventDefault();
   const name = document.getElementById('newBoxName').value.trim();
@@ -1016,12 +1097,20 @@ document.getElementById('addBoxForm').addEventListener('submit', async e => {
   if (!name) return;
   try {
     await api('/boxes', { method: 'POST', body: JSON.stringify({ name, initial_balance }) });
-    document.getElementById('newBoxName').value = '';
-    document.getElementById('newBoxBalance').value = '0';
     await reload();
+    showBoxView('list');
     renderBoxList();
   } catch (e) { alert(e.message); }
 });
+
+window.startEditBox = function(id) {
+  editingBoxId = id;
+  renderBoxList();
+};
+window.cancelEditBox = function() {
+  editingBoxId = null;
+  renderBoxList();
+};
 
 window.saveBox = async function(id) {
   const li = document.querySelector(`#boxList li[data-id="${id}"]`);
@@ -1030,6 +1119,7 @@ window.saveBox = async function(id) {
   if (!name) { alert('Dê um nome ao caixa.'); return; }
   try {
     await api('/boxes/' + id, { method: 'PUT', body: JSON.stringify({ name, initial_balance }) });
+    editingBoxId = null;
     await reload();
     renderBoxList();
   } catch (e) { alert(e.message); }
@@ -1039,6 +1129,7 @@ window.deleteBox = async function(id) {
   if (!confirm('Excluir este caixa? As transações ligadas a ele continuam, mas deixam de ter caixa.')) return;
   try {
     await api('/boxes/' + id, { method: 'DELETE' });
+    if (editingBoxId === id) editingBoxId = null;
     await reload();
     renderBoxList();
   } catch (e) { alert(e.message); }
