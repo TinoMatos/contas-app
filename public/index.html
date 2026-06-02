@@ -894,11 +894,16 @@ function renderReminders() {
 async function payReminder(id) {
   const r = recurring.find(x => x.id === id);
   if (!r) return;
+  const verbo = r.type === 'expense' ? 'pago' : 'recebido';
+  const input = prompt(`Qual o valor ${verbo} de "${r.desc}" este mês?\n(pode mudar o valor se for diferente)`, String(r.amount));
+  if (input === null) return; // cancelou
+  const amount = parseFloat(String(input).replace(',', '.'));
+  if (!amount || amount <= 0) { alert('Valor inválido.'); return; }
   const today = new Date().toISOString().slice(0, 10);
   try {
     await api('/transactions', {
       method: 'POST',
-      body: JSON.stringify({ desc: r.desc, category: r.category, amount: r.amount, type: r.type, date: today })
+      body: JSON.stringify({ desc: r.desc, category: r.category, amount, type: r.type, date: today })
     });
     await reload();
   } catch (e) { alert(e.message); }
