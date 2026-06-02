@@ -165,16 +165,12 @@
   .btn-add-box:hover { background: #1e8e4e; }
   .box-add-form .form-group { margin-bottom: 14px; }
   .box-empty { text-align: center; color: #999; padding: 24px 0; }
-  .fab-calc {
-    position: fixed; right: 20px; bottom: 20px; z-index: 90;
-    width: 60px; height: 60px; border-radius: 50%; padding: 0;
-    font-size: 1.6em; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
-    display: flex; align-items: center; justify-content: center;
+  .btn-calc-bar {
+    margin-left: auto; background: #eef1f6; color: #5a6472;
+    padding: 8px 11px; display: inline-flex; align-items: center; justify-content: center;
   }
-  .fab-calc:hover { transform: scale(1.05); }
-  @supports (padding: max(0px)) {
-    .fab-calc { right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); }
-  }
+  .btn-calc-bar:hover { background: #e0e5ee; color: #2a5298; }
+  .btn-calc-bar svg { display: block; }
   .calc-modal { max-width: 340px; }
   .calc-display {
     background: #1e2a3a; color: #fff; border-radius: 10px; padding: 18px 16px;
@@ -295,6 +291,15 @@
     <select id="profileSelect"></select>
     <button type="button" class="btn-mini" id="btnNewProfile">+ Novo</button>
     <button type="button" class="btn-mini secondary" id="btnManageProfiles">Gerenciar</button>
+    <button type="button" class="btn-calc-bar" id="btnCalc" title="Calculadora">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="8" y1="6" x2="16" y2="6"/>
+        <path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/>
+        <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14v4"/>
+        <path d="M8 18h.01"/><path d="M12 18h.01"/>
+      </svg>
+    </button>
   </div>
   <div class="month-bar">
     <label for="monthFilter">Mês:</label>
@@ -365,7 +370,6 @@
     <span class="footer-sep">·</span>
     <a href="#" id="iosInstallLink">🍎 Instalar no iPhone</a>
   </footer>
-  <button type="button" class="fab-calc" id="btnCalc" title="Calculadora">🧮</button>
 </div>
 
 <div id="calcModal" class="modal-overlay hidden">
