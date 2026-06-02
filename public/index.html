@@ -169,6 +169,22 @@
   .calc-grid button.zero { grid-column: span 2; }
   .calc-use { width: 100%; margin-top: 12px; background: #f39c12; }
   .calc-use:hover { background: #d68910; }
+  .calc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .calc-header h2 { margin-bottom: 0; }
+  .calc-min-btn { padding: 2px 12px; font-size: 1.3em; line-height: 1; background: #95a5a6; }
+  .calc-min-btn:hover { background: #7f8c8d; }
+  /* Estado minimizado: vira uma barrinha no canto e libera o resto da tela */
+  #calcModal.calc-min { background: transparent; pointer-events: none; align-items: flex-end; justify-content: flex-end; padding: 16px; }
+  #calcModal.calc-min .modal { pointer-events: auto; width: auto; max-width: 240px; padding: 12px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  #calcModal.calc-min .calc-grid,
+  #calcModal.calc-min .calc-use,
+  #calcModal.calc-min .modal-actions { display: none; }
+  #calcModal.calc-min .calc-header { margin-bottom: 8px; }
+  #calcModal.calc-min .calc-header h2 { font-size: 1em; }
+  #calcModal.calc-min .calc-display { min-height: auto; padding: 10px 12px; margin-bottom: 0; }
+  #calcModal.calc-min .calc-result { font-size: 1.5em; }
+  #calcModal.calc-min .calc-hint-min { display: block; }
+  .calc-hint-min { display: none; font-size: 0.72em; color: #999; text-align: center; margin-top: 6px; }
   @media (max-width: 700px) {
     form#form { grid-template-columns: 1fr 1fr; }
     .report-grid { grid-template-columns: 1fr; }
@@ -302,11 +318,15 @@
 
 <div id="calcModal" class="modal-overlay hidden">
   <div class="modal calc-modal">
-    <h2>🧮 Calculadora</h2>
-    <div class="calc-display">
+    <div class="calc-header">
+      <h2>🧮 Calculadora</h2>
+      <button type="button" class="calc-min-btn" id="calcMin" title="Minimizar">—</button>
+    </div>
+    <div class="calc-display" id="calcDisplay">
       <div class="calc-expr" id="calcExpr"></div>
       <div class="calc-result" id="calcResult">0</div>
     </div>
+    <div class="calc-hint-min">👆 Toque para expandir</div>
     <div class="calc-grid" id="calcGrid">
       <button type="button" class="fn" data-act="clear">C</button>
       <button type="button" class="fn" data-act="back">⌫</button>
@@ -1093,11 +1113,24 @@ document.getElementById('btnCalc').addEventListener('click', () => {
   const cur = document.getElementById('amount').value;
   calcExpr = (cur && !isNaN(parseFloat(cur))) ? String(parseFloat(cur)) : '';
   calcRender();
-  document.getElementById('calcModal').classList.remove('hidden');
+  const modal = document.getElementById('calcModal');
+  modal.classList.remove('calc-min');
+  modal.classList.remove('hidden');
 });
 
 document.getElementById('calcClose').addEventListener('click', () => {
-  document.getElementById('calcModal').classList.add('hidden');
+  const modal = document.getElementById('calcModal');
+  modal.classList.remove('calc-min');
+  modal.classList.add('hidden');
+});
+
+function calcMinimize(on) {
+  document.getElementById('calcModal').classList.toggle('calc-min', on);
+}
+document.getElementById('calcMin').addEventListener('click', () => calcMinimize(true));
+// Toca na barrinha minimizada para expandir
+document.getElementById('calcDisplay').addEventListener('click', () => {
+  if (document.getElementById('calcModal').classList.contains('calc-min')) calcMinimize(false);
 });
 
 document.getElementById('calcUse').addEventListener('click', () => {
