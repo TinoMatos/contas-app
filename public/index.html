@@ -141,6 +141,11 @@
     box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
   }
   .box-avatar.emoji { font-size: 1.35em; }
+  .box-logo {
+    flex: 0 0 42px; width: 42px; height: 42px; border-radius: 50%;
+    object-fit: contain; background: #fff; padding: 3px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+  }
   .box-card-main { flex: 1; min-width: 0; }
   .box-card-name { display: block; font-weight: 600; color: #2a3a4f; }
   .box-card-bal { display: block; font-size: 1.15em; font-weight: bold; margin-top: 2px; }
@@ -1044,10 +1049,10 @@ let editingBoxId = null;
 const BANK_BRANDS = [
   { kw: ['dinheiro', 'carteira', 'espécie', 'especie', 'cash', 'vivo', 'em maos', 'em mãos'], emoji: '💵', bg: '#27ae60' },
   { kw: ['poupança', 'poupanca', 'cofre', 'reserva'], emoji: '🐷', bg: '#e84393' },
-  { kw: ['bradesco'], label: 'B', bg: '#CC092F' },
-  { kw: ['banco do brasil', 'brasil', ' bb', 'bb '], label: 'BB', bg: '#0033A0' },
-  { kw: ['brb'], label: 'BRB', bg: '#0067B1' },
-  { kw: ['c6'], label: 'C6', bg: '#1C1C1C' },
+  { kw: ['bradesco'], label: 'B', bg: '#CC092F', logo: 'bradesco.png' },
+  { kw: ['banco do brasil', 'brasil', ' bb', 'bb '], label: 'BB', bg: '#0033A0', logo: 'bb.png' },
+  { kw: ['brb'], label: 'BRB', bg: '#0067B1', logo: 'brb.png' },
+  { kw: ['c6'], label: 'C6', bg: '#1C1C1C', logo: 'c6.png' },
   { kw: ['nubank', 'nu '], label: 'Nu', bg: '#820AD1' },
   { kw: ['itau', 'itaú'], label: 'Itaú', bg: '#EC7000' },
   { kw: ['santander'], label: 'S', bg: '#EC0000' },
@@ -1071,8 +1076,14 @@ function boxAvatar(name) {
   const n = (' ' + (name || '').toLowerCase() + ' ');
   for (const b of BANK_BRANDS) {
     if (b.kw.some(k => n.includes(k))) {
-      if (b.emoji) return `<span class="box-avatar emoji" style="background:${b.bg}">${b.emoji}</span>`;
-      return `<span class="box-avatar" style="background:${b.bg}">${b.label}</span>`;
+      const fb = b.emoji
+        ? `<span class="box-avatar emoji${b.logo ? ' hidden' : ''}" style="background:${b.bg}">${b.emoji}</span>`
+        : `<span class="box-avatar${b.logo ? ' hidden' : ''}" style="background:${b.bg}">${b.label}</span>`;
+      // Se houver logo real, tenta carregá-la; se faltar o arquivo, mostra o círculo colorido.
+      if (b.logo) {
+        return `<img class="box-logo" src="/logos/${b.logo}" alt="${escapeHtml(name)}" onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden')">${fb}`;
+      }
+      return fb;
     }
   }
   // Banco desconhecido: primeira letra com uma cor estável
