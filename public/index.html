@@ -31,6 +31,8 @@
   .reminder.income { border-left-color: #27ae60; }
   .reminder-desc { font-weight: 600; }
   .reminder-meta { font-size: 0.85em; color: #666; margin-top: 2px; }
+  .rec-box-row { display: flex; align-items: center; gap: 6px; font-size: 0.82em; color: #555; margin-top: 6px; flex-wrap: wrap; }
+  .rec-box-row select { width: auto; padding: 5px 8px; font-size: 0.95em; }
   .app-footer { margin-top: 30px; padding: 20px; text-align: center; color: rgba(255,255,255,0.85); font-size: 0.9em; }
   .app-footer a { color: white; text-decoration: none; font-weight: 500; padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.1); display: inline-block; margin: 4px; }
   .app-footer a:hover { background: rgba(255,255,255,0.2); }
@@ -152,6 +154,11 @@
   .box-card-bal { display: block; font-size: 1.15em; font-weight: bold; margin-top: 2px; }
   .box-card-bal.neg { color: #e74c3c; }
   .box-card-bal.pos { color: #27ae60; }
+  .box-card-yield { display: block; font-size: 0.82em; margin-top: 3px; }
+  .box-card-yield.up { color: #1e8e4e; }
+  .box-card-yield.down { color: #c0392b; }
+  .box-card-yield.none { color: #999; }
+  .box-card-yield small { color: #999; font-weight: normal; }
   .icon-btn { background: #eef1f6; color: #2a3a4f; padding: 8px 10px; font-size: 1em; border-radius: 8px; }
   .icon-btn:hover { background: #dfe5ef; }
   .icon-btn.danger { background: #fdecea; }
@@ -324,6 +331,7 @@
     <div class="card"><h3>Total Pago</h3><div class="value expense" id="totalExpense">R$ 0,00</div></div>
     <div class="card card-clickable" id="balanceCard" title="Saldo do mês (recebido − pago)"><h3>Saldo do mês</h3><div class="value" id="balance">R$ 0,00</div><div class="card-hint">Toque para ver os caixas</div></div>
     <div class="card card-clickable hidden" id="totalOwnedCard" title="Total somando todos os caixas"><h3>Total que tenho 💼</h3><div class="value balance-positive" id="totalOwnedValue">R$ 0,00</div><div class="card-hint">soma de todos os caixas</div></div>
+    <div class="card card-clickable" id="investCard" title="Seus investimentos (CDB, ações...)"><h3>Investimentos 📈</h3><div class="value balance-positive" id="investTotalValue">R$ 0,00</div><div class="card-hint" id="investHint">Toque para adicionar</div></div>
   </div>
   <div class="panel">
     <h2>Nova Transação</h2>
@@ -477,6 +485,61 @@
   </div>
 </div>
 
+<div id="investModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>📈 Meus Investimentos</h2>
+    <div id="investListView">
+      <p class="box-intro">Acompanhe seu dinheiro guardado (CDB, ações, fundos...). Atualize o valor de vez em quando e o app mostra quanto rendeu por mês.</p>
+      <div class="box-total" id="investTotal"></div>
+      <ul class="box-list" id="investList"></ul>
+      <button type="button" class="btn-add-box" id="btnShowAddInvest">+ Novo investimento</button>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="investClose">Fechar</button>
+      </div>
+    </div>
+    <div id="investAddView" class="hidden">
+      <form id="addInvestForm">
+        <div class="form-group">
+          <label>Nome do investimento</label>
+          <input type="text" id="newInvestName" placeholder="Ex: CDB Banco X, Tesouro, Ações..." maxlength="40" required>
+        </div>
+        <div class="form-group">
+          <label>Valor atual (R$)</label>
+          <input type="number" id="newInvestValue" step="0.01" min="0" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label>Data deste valor</label>
+          <input type="date" id="newInvestDate" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="btnCancelAddInvest">Voltar</button>
+          <button type="submit">Adicionar</button>
+        </div>
+      </form>
+    </div>
+    <div id="investUpdateView" class="hidden">
+      <h3 style="color:#2a5298; margin-bottom:6px;">💰 Atualizar valor</h3>
+      <p class="box-intro" id="investUpdateName"></p>
+      <form id="investUpdateForm">
+        <input type="hidden" id="investUpdateId">
+        <div class="form-group">
+          <label>Valor atual hoje (R$)</label>
+          <input type="number" id="investUpdateValue" step="0.01" min="0" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="investUpdateDate" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="btnCancelUpdateInvest">Voltar</button>
+          <button type="submit">Salvar valor</button>
+        </div>
+      </form>
+      <div class="transfer-history" id="investHistory"></div>
+    </div>
+  </div>
+</div>
+
 <div id="recurringModal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Contas fixas mensais</h2>
@@ -551,6 +614,7 @@ let transactions = [];
 let recurring = [];
 let boxes = [];
 let transfers = [];
+let investments = [];
 let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
@@ -641,6 +705,7 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   recurring = [];
   boxes = [];
   transfers = [];
+  investments = [];
   profiles = [];
   currentProfileId = null;
   document.getElementById('appScreen').classList.add('hidden');
@@ -766,10 +831,11 @@ document.getElementById('btnAllMonths').addEventListener('click', () => {
 
 async function reload() {
   try {
-    [transactions, recurring, boxes, transfers] = await Promise.all([api('/transactions'), api('/recurring'), api('/boxes'), api('/transfers')]);
+    [transactions, recurring, boxes, transfers, investments] = await Promise.all([api('/transactions'), api('/recurring'), api('/boxes'), api('/transfers'), api('/investments')]);
     render();
     renderReminders();
     renderBoxSelects();
+    renderInvestCard();
     maybeShowDueTodayAlert();
   } catch (e) {
     if (e.message.includes('Token') || e.message.includes('Sem token')) {
@@ -928,7 +994,7 @@ document.getElementById('form').addEventListener('submit', async e => {
       if (!exists) {
         await api('/recurring', {
           method: 'POST',
-          body: JSON.stringify({ desc, category, amount, type, day_of_month: day })
+          body: JSON.stringify({ desc, category, amount, type, day_of_month: day, box_id })
         });
       }
     }
@@ -949,7 +1015,7 @@ window.makeRecurring = async function(id) {
   try {
     await api('/recurring', {
       method: 'POST',
-      body: JSON.stringify({ desc: t.desc, category: t.category, amount: t.amount, type: t.type, day_of_month: day })
+      body: JSON.stringify({ desc: t.desc, category: t.category, amount: t.amount, type: t.type, day_of_month: day, box_id: t.box_id || null })
     });
     await reload();
     alert('Conta fixa criada! Vai aparecer nos lembretes mês que vem.');
@@ -983,7 +1049,7 @@ function maybeShowDueTodayAlert() {
     <div class="reminder ${r.type}" style="margin-bottom:6px;">
       <div class="reminder-info">
         <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
-        <div class="reminder-meta">${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+        <div class="reminder-meta">${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}${boxName(r.box_id) ? ' · 💼 ' + escapeHtml(boxName(r.box_id)) : ''}</div>
       </div>
     </div>
   `).join('');
@@ -1008,7 +1074,7 @@ function renderReminders() {
     <div class="reminder ${r.type}">
       <div class="reminder-info">
         <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
-        <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+        <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}${boxName(r.box_id) ? ' · 💼 ' + escapeHtml(boxName(r.box_id)) : ''}</div>
       </div>
       <button class="btn-mini" data-pay="${r.id}">${r.type === 'expense' ? 'Já paguei' : 'Já recebi'}</button>
     </div>
@@ -1030,7 +1096,7 @@ async function payReminder(id) {
   try {
     await api('/transactions', {
       method: 'POST',
-      body: JSON.stringify({ desc: r.desc, category: r.category, amount, type: r.type, date: today })
+      body: JSON.stringify({ desc: r.desc, category: r.category, amount, type: r.type, date: today, box_id: r.box_id || null })
     });
     await reload();
   } catch (e) { alert(e.message); }
@@ -1042,15 +1108,25 @@ document.getElementById('btnManageRecurring').addEventListener('click', () => {
   if (recurring.length === 0) {
     list.innerHTML = '<div class="empty">Nenhuma conta fixa cadastrada. Crie marcando "Cobrar todo mês" ao adicionar uma transação.</div>';
   } else {
-    list.innerHTML = recurring.map(r => `
+    list.innerHTML = recurring.map(r => {
+      const verbo = r.type === 'expense' ? 'Sai do caixa' : 'Entra no caixa';
+      const boxSelector = boxes.length > 0 ? `
+          <label class="rec-box-row">${verbo}:
+            <select class="rec-box" onchange="setRecurringBox(${r.id}, this.value)">
+              <option value="">— Nenhum —</option>
+              ${boxes.map(b => `<option value="${b.id}" ${String(b.id) === String(r.box_id) ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
+            </select>
+          </label>` : '';
+      return `
       <div class="reminder ${r.type}">
         <div class="reminder-info">
           <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
           <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+          ${boxSelector}
         </div>
         <button class="btn-mini" data-del-rec="${r.id}" style="background:#e74c3c;color:white;">Excluir</button>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
     list.querySelectorAll('[data-del-rec]').forEach(b => {
       b.addEventListener('click', async () => {
         if (!confirm('Remover esta conta fixa? As transações já registradas continuam.')) return;
@@ -1062,12 +1138,26 @@ document.getElementById('btnManageRecurring').addEventListener('click', () => {
   modal.classList.remove('hidden');
 });
 
+window.setRecurringBox = async function(id, boxId) {
+  try {
+    const updated = await api('/recurring/' + id, { method: 'PUT', body: JSON.stringify({ box_id: boxId || null }) });
+    const idx = recurring.findIndex(x => x.id === id);
+    if (idx >= 0) recurring[idx] = updated;
+    renderReminders();
+  } catch (e) { alert(e.message); }
+};
+
 function openManageRecurring() { document.getElementById('btnManageRecurring').click(); }
 document.getElementById('closeRecurringModal').addEventListener('click', () => {
   document.getElementById('recurringModal').classList.add('hidden');
 });
 
 // ---- Caixas (carteiras) ----
+function boxName(id) {
+  if (id === null || id === undefined || id === '') return null;
+  const b = boxes.find(x => String(x.id) === String(id));
+  return b ? b.name : null;
+}
 function renderBoxSelects() {
   const hasBoxes = boxes.length > 0;
   const opts = '<option value="">— Nenhum —</option>' +
@@ -1311,6 +1401,215 @@ window.deleteBox = async function(id) {
     if (editingBoxId === id) editingBoxId = null;
     await reload();
     renderBoxList();
+  } catch (e) { alert(e.message); }
+};
+
+// ---- Investimentos (CDB, ações, fundos...) ----
+// Calcula o rendimento entre os dois últimos valores registrados e normaliza
+// para "por mês" usando a distância em dias entre as duas datas.
+function investYield(inv) {
+  const cur = inv.current_value, prev = inv.prev_value;
+  if (cur === null || cur === undefined || prev === null || prev === undefined) return null;
+  const growth = Number(cur) - Number(prev);
+  const d1 = new Date(inv.prev_date + 'T00:00:00');
+  const d2 = new Date(inv.current_date + 'T00:00:00');
+  const days = (d2 - d1) / 86400000;
+  const months = days > 0 ? days / 30.44 : 0;
+  const perMonth = months > 0 ? growth / months : growth;
+  const pct = Number(prev) > 0 ? (growth / Number(prev)) * 100 : null;
+  return { growth, months, perMonth, pct };
+}
+
+function renderInvestCard() {
+  const total = investments.reduce((s, i) => s + Number(i.current_value || 0), 0);
+  let monthly = 0, hasYield = false;
+  investments.forEach(i => {
+    const y = investYield(i);
+    if (y) { monthly += y.perMonth; hasYield = true; }
+  });
+  document.getElementById('investTotalValue').textContent = fmt(total);
+  const hint = document.getElementById('investHint');
+  if (investments.length === 0) {
+    hint.textContent = 'Toque para adicionar';
+  } else if (hasYield) {
+    const sign = monthly >= 0 ? '+' : '−';
+    hint.textContent = `rende ${sign}${fmt(Math.abs(monthly))}/mês`;
+  } else {
+    hint.textContent = 'Atualize o valor p/ ver o rendimento';
+  }
+}
+
+function renderInvestList() {
+  const ul = document.getElementById('investList');
+  const totalEl = document.getElementById('investTotal');
+  const total = investments.reduce((s, i) => s + Number(i.current_value || 0), 0);
+  let monthly = 0, hasYield = false;
+  investments.forEach(i => { const y = investYield(i); if (y) { monthly += y.perMonth; hasYield = true; } });
+  const monthlyTxt = hasYield ? ` · rende ${monthly >= 0 ? '+' : '−'}${fmt(Math.abs(monthly))}/mês` : '';
+  totalEl.innerHTML = `<span class="bt-label">Total investido${monthlyTxt}</span><span class="bt-value">${fmt(total)}</span>`;
+  if (investments.length === 0) {
+    ul.innerHTML = '<li class="box-empty">Nenhum investimento ainda.<br>Toque em "+ Novo investimento" para começar.</li>';
+    return;
+  }
+  ul.innerHTML = investments.map(i => {
+    const y = investYield(i);
+    let yieldLine;
+    if (!y) {
+      yieldLine = `<span class="box-card-yield none">Atualize o valor depois para ver o rendimento</span>`;
+    } else {
+      const cls = y.growth >= 0 ? 'up' : 'down';
+      const arrow = y.growth >= 0 ? '📈' : '📉';
+      const sign = y.growth >= 0 ? '+' : '−';
+      const pct = y.pct !== null ? ` (${y.growth >= 0 ? '+' : ''}${y.pct.toFixed(2).replace('.', ',')}%)` : '';
+      // Se o intervalo não for ~1 mês, mostra o valor normalizado por mês
+      const perMonthTxt = (y.months >= 0.6 && Math.abs(y.months - 1) > 0.25)
+        ? ` <small>≈ ${sign}${fmt(Math.abs(y.perMonth))}/mês</small>`
+        : '';
+      yieldLine = `<span class="box-card-yield ${cls}">${arrow} ${sign}${fmt(Math.abs(y.growth))}${pct} desde ${fmtDateBR(i.prev_date)}${perMonthTxt}</span>`;
+    }
+    return `
+      <li class="box-card" data-id="${i.id}">
+        ${boxAvatar(i.name)}
+        <div class="box-card-main">
+          <span class="box-card-name">${escapeHtml(i.name)}</span>
+          <span class="box-card-bal pos">${fmt(i.current_value || 0)}</span>
+          ${yieldLine}
+        </div>
+        <button type="button" class="icon-btn" title="Atualizar valor" onclick="openUpdateInvest(${i.id})">💰</button>
+        <button type="button" class="icon-btn" title="Renomear" onclick="renameInvest(${i.id})">✏️</button>
+        <button type="button" class="icon-btn danger" title="Excluir" onclick="deleteInvest(${i.id})">🗑️</button>
+      </li>`;
+  }).join('');
+}
+
+function fmtDateBR(d) {
+  if (!d) return '';
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
+}
+
+function showInvestView(which) {
+  document.getElementById('investListView').classList.toggle('hidden', which !== 'list');
+  document.getElementById('investAddView').classList.toggle('hidden', which !== 'add');
+  document.getElementById('investUpdateView').classList.toggle('hidden', which !== 'update');
+}
+
+function openInvestModal() {
+  showInvestView('list');
+  renderInvestList();
+  document.getElementById('investModal').classList.remove('hidden');
+}
+
+document.getElementById('investCard').addEventListener('click', openInvestModal);
+document.getElementById('investClose').addEventListener('click', () => {
+  document.getElementById('investModal').classList.add('hidden');
+});
+
+document.getElementById('btnShowAddInvest').addEventListener('click', () => {
+  document.getElementById('newInvestName').value = '';
+  document.getElementById('newInvestValue').value = '';
+  document.getElementById('newInvestDate').valueAsDate = new Date();
+  showInvestView('add');
+  document.getElementById('newInvestName').focus();
+});
+document.getElementById('btnCancelAddInvest').addEventListener('click', () => showInvestView('list'));
+
+document.getElementById('addInvestForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('newInvestName').value.trim();
+  const value = parseFloat(document.getElementById('newInvestValue').value);
+  const date = document.getElementById('newInvestDate').value;
+  if (!name) return;
+  if (isNaN(value) || value < 0) { alert('Informe um valor válido.'); return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    await api('/investments', { method: 'POST', body: JSON.stringify({ name, value, date }) });
+    await reload();
+    showInvestView('list');
+    renderInvestList();
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; }
+});
+
+window.openUpdateInvest = function(id) {
+  const inv = investments.find(x => x.id === id);
+  if (!inv) return;
+  document.getElementById('investUpdateId').value = id;
+  document.getElementById('investUpdateName').textContent =
+    `${inv.name} — valor atual: ${fmt(inv.current_value || 0)}${inv.current_date ? ' (' + fmtDateBR(inv.current_date) + ')' : ''}`;
+  document.getElementById('investUpdateValue').value = '';
+  document.getElementById('investUpdateDate').valueAsDate = new Date();
+  showInvestView('update');
+  renderInvestHistory(id);
+  document.getElementById('investUpdateValue').focus();
+};
+document.getElementById('btnCancelUpdateInvest').addEventListener('click', () => { showInvestView('list'); renderInvestList(); });
+
+async function renderInvestHistory(id) {
+  const el = document.getElementById('investHistory');
+  el.innerHTML = '<h4>Histórico de valores</h4><div class="transfer-empty">Carregando...</div>';
+  try {
+    const snaps = await api('/investments/' + id + '/snapshots');
+    if (snaps.length === 0) { el.innerHTML = ''; return; }
+    el.innerHTML = '<h4>Histórico de valores</h4>' + snaps.map(s => `
+      <div class="transfer-item">
+        <div class="ti-main">
+          <div class="ti-route">${fmt(s.value)}</div>
+          <div class="ti-date">${fmtDateBR(s.date)}</div>
+        </div>
+        <button type="button" class="icon-btn danger" title="Remover este registro" onclick="deleteInvestSnap(${id}, ${s.id})">🗑️</button>
+      </div>`).join('');
+  } catch (e) { el.innerHTML = ''; }
+}
+
+document.getElementById('investUpdateForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = parseInt(document.getElementById('investUpdateId').value, 10);
+  const value = parseFloat(document.getElementById('investUpdateValue').value);
+  const date = document.getElementById('investUpdateDate').value;
+  if (isNaN(value) || value < 0) { alert('Informe um valor válido.'); return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    await api('/investments/' + id + '/snapshots', { method: 'POST', body: JSON.stringify({ value, date }) });
+    await reload();
+    showInvestView('list');
+    renderInvestList();
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; }
+});
+
+window.deleteInvestSnap = async function(id, sid) {
+  if (!confirm('Remover este registro de valor?')) return;
+  try {
+    await api('/investments/' + id + '/snapshots/' + sid, { method: 'DELETE' });
+    await reload();
+    renderInvestHistory(id);
+    const inv = investments.find(x => x.id === id);
+    if (inv) document.getElementById('investUpdateName').textContent =
+      `${inv.name} — valor atual: ${fmt(inv.current_value || 0)}${inv.current_date ? ' (' + fmtDateBR(inv.current_date) + ')' : ''}`;
+  } catch (e) { alert(e.message); }
+};
+
+window.renameInvest = async function(id) {
+  const inv = investments.find(x => x.id === id);
+  if (!inv) return;
+  const name = prompt('Novo nome do investimento:', inv.name);
+  if (name === null) return;
+  if (!name.trim()) { alert('Dê um nome.'); return; }
+  try {
+    await api('/investments/' + id, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+    await reload();
+    renderInvestList();
+  } catch (e) { alert(e.message); }
+};
+
+window.deleteInvest = async function(id) {
+  if (!confirm('Excluir este investimento e todo o seu histórico de valores?')) return;
+  try {
+    await api('/investments/' + id, { method: 'DELETE' });
+    await reload();
+    renderInvestList();
   } catch (e) { alert(e.message); }
 };
 

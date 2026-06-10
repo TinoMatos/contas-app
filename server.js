@@ -69,6 +69,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_boxes_profile ON cash_boxes(profile_id);
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_tx_box ON transactions(box_id);
+    ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
     CREATE TABLE IF NOT EXISTS transfers (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -80,6 +81,22 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_transfers_profile ON transfers(profile_id);
+    CREATE TABLE IF NOT EXISTS investments (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_investments_profile ON investments(profile_id);
+    CREATE TABLE IF NOT EXISTS investment_snapshots (
+      id SERIAL PRIMARY KEY,
+      investment_id INTEGER NOT NULL REFERENCES investments(id) ON DELETE CASCADE,
+      value NUMERIC(14,2) NOT NULL,
+      date DATE NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_inv_snap ON investment_snapshots(investment_id);
   `);
 
   // Backfill: cria perfil "Principal" para cada usuário que ainda não tem,
@@ -265,7 +282,7 @@ app.delete('/api/transactions/:id', auth, resolveProfile, async (req, res) => {
 
 app.get('/api/recurring', auth, resolveProfile, async (req, res) => {
   const r = await pool.query(
-    `SELECT id, description AS desc, category, amount::float AS amount, type, day_of_month
+    `SELECT id, description AS desc, category, amount::float AS amount, type, day_of_month, box_id
      FROM recurring_bills WHERE user_id=$1 AND profile_id=$2 ORDER BY day_of_month ASC, id ASC`,
     [req.user.id, req.profileId]
   );
@@ -273,16 +290,30 @@ app.get('/api/recurring', auth, resolveProfile, async (req, res) => {
 });
 
 app.post('/api/recurring', auth, resolveProfile, async (req, res) => {
-  const { desc, category, amount, type, day_of_month } = req.body || {};
+  const { desc, category, amount, type, day_of_month, box_id } = req.body || {};
   const day = parseInt(day_of_month, 10);
   if (!desc || !amount || !type || !day || day < 1 || day > 31) return res.status(400).json({ error: 'Dados inválidos' });
   if (!['income','expense'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  const boxId = await resolveBoxId(box_id, req.user.id, req.profileId);
   const r = await pool.query(
-    `INSERT INTO recurring_bills(user_id,profile_id,description,category,amount,type,day_of_month)
-     VALUES($1,$2,$3,$4,$5,$6,$7)
-     RETURNING id, description AS desc, category, amount::float AS amount, type, day_of_month`,
-    [req.user.id, req.profileId, String(desc).trim(), category ? String(category).trim() : null, amount, type, day]
+    `INSERT INTO recurring_bills(user_id,profile_id,description,category,amount,type,day_of_month,box_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING id, description AS desc, category, amount::float AS amount, type, day_of_month, box_id`,
+    [req.user.id, req.profileId, String(desc).trim(), category ? String(category).trim() : null, amount, type, day, boxId]
   );
+  res.json(r.rows[0]);
+});
+
+app.put('/api/recurring/:id', auth, resolveProfile, async (req, res) => {
+  const { box_id } = req.body || {};
+  const boxId = await resolveBoxId(box_id, req.user.id, req.profileId);
+  const r = await pool.query(
+    `UPDATE recurring_bills SET box_id=$1
+     WHERE id=$2 AND user_id=$3 AND profile_id=$4
+     RETURNING id, description AS desc, category, amount::float AS amount, type, day_of_month, box_id`,
+    [boxId, req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
   res.json(r.rows[0]);
 });
 
@@ -394,6 +425,118 @@ app.delete('/api/transfers/:id', auth, resolveProfile, async (req, res) => {
     [req.params.id, req.user.id, req.profileId]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Transferência não encontrada' });
+  res.json({ ok: true });
+});
+
+// ---- Investimentos (CDB, ações, etc) ----
+// Cada investimento guarda um histórico de valores (snapshots). O rendimento
+// é calculado comparando o valor atual com o valor anterior registrado.
+function investmentRowQuery() {
+  return `
+    SELECT i.id, i.name,
+      (SELECT s.value::float FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date DESC, s.id DESC LIMIT 1) AS current_value,
+      (SELECT to_char(s.date,'YYYY-MM-DD') FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date DESC, s.id DESC LIMIT 1) AS current_date,
+      (SELECT s.value::float FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date DESC, s.id DESC LIMIT 1 OFFSET 1) AS prev_value,
+      (SELECT to_char(s.date,'YYYY-MM-DD') FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date DESC, s.id DESC LIMIT 1 OFFSET 1) AS prev_date,
+      (SELECT s.value::float FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date ASC, s.id ASC LIMIT 1) AS first_value,
+      (SELECT to_char(s.date,'YYYY-MM-DD') FROM investment_snapshots s WHERE s.investment_id=i.id ORDER BY s.date ASC, s.id ASC LIMIT 1) AS first_date,
+      (SELECT COUNT(*)::int FROM investment_snapshots s WHERE s.investment_id=i.id) AS snapshot_count
+    FROM investments i`;
+}
+
+async function resolveInvestment(rawId, userId, profileId) {
+  const iid = parseInt(rawId, 10);
+  if (!iid) return null;
+  const r = await pool.query('SELECT id FROM investments WHERE id=$1 AND user_id=$2 AND profile_id=$3', [iid, userId, profileId]);
+  return r.rowCount === 0 ? null : iid;
+}
+
+app.get('/api/investments', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    investmentRowQuery() + ' WHERE i.user_id=$1 AND i.profile_id=$2 ORDER BY i.id ASC',
+    [req.user.id, req.profileId]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/investments', auth, resolveProfile, async (req, res) => {
+  const { name, value, date } = req.body || {};
+  const n = String(name || '').trim();
+  const val = Number(value);
+  if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
+  if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
+  if (!isFinite(val) || val < 0) return res.status(400).json({ error: 'Valor inválido' });
+  if (!date) return res.status(400).json({ error: 'Data inválida' });
+  const ins = await pool.query(
+    'INSERT INTO investments(user_id,profile_id,name) VALUES($1,$2,$3) RETURNING id',
+    [req.user.id, req.profileId, n]
+  );
+  const id = ins.rows[0].id;
+  await pool.query(
+    'INSERT INTO investment_snapshots(investment_id,value,date) VALUES($1,$2,$3)',
+    [id, val, date]
+  );
+  const r = await pool.query(investmentRowQuery() + ' WHERE i.id=$1', [id]);
+  res.json(r.rows[0]);
+});
+
+app.put('/api/investments/:id', auth, resolveProfile, async (req, res) => {
+  const { name } = req.body || {};
+  const n = String(name || '').trim();
+  if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
+  if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
+  const r = await pool.query(
+    'UPDATE investments SET name=$1 WHERE id=$2 AND user_id=$3 AND profile_id=$4 RETURNING id',
+    [n, req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Investimento não encontrado' });
+  const row = await pool.query(investmentRowQuery() + ' WHERE i.id=$1', [r.rows[0].id]);
+  res.json(row.rows[0]);
+});
+
+app.delete('/api/investments/:id', auth, resolveProfile, async (req, res) => {
+  const r = await pool.query(
+    'DELETE FROM investments WHERE id=$1 AND user_id=$2 AND profile_id=$3',
+    [req.params.id, req.user.id, req.profileId]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Investimento não encontrado' });
+  res.json({ ok: true });
+});
+
+app.get('/api/investments/:id/snapshots', auth, resolveProfile, async (req, res) => {
+  const id = await resolveInvestment(req.params.id, req.user.id, req.profileId);
+  if (!id) return res.status(404).json({ error: 'Investimento não encontrado' });
+  const r = await pool.query(
+    `SELECT id, value::float AS value, to_char(date,'YYYY-MM-DD') AS date
+     FROM investment_snapshots WHERE investment_id=$1 ORDER BY date DESC, id DESC`,
+    [id]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/investments/:id/snapshots', auth, resolveProfile, async (req, res) => {
+  const id = await resolveInvestment(req.params.id, req.user.id, req.profileId);
+  if (!id) return res.status(404).json({ error: 'Investimento não encontrado' });
+  const { value, date } = req.body || {};
+  const val = Number(value);
+  if (!isFinite(val) || val < 0) return res.status(400).json({ error: 'Valor inválido' });
+  if (!date) return res.status(400).json({ error: 'Data inválida' });
+  await pool.query(
+    'INSERT INTO investment_snapshots(investment_id,value,date) VALUES($1,$2,$3)',
+    [id, val, date]
+  );
+  const r = await pool.query(investmentRowQuery() + ' WHERE i.id=$1', [id]);
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/investments/:id/snapshots/:sid', auth, resolveProfile, async (req, res) => {
+  const id = await resolveInvestment(req.params.id, req.user.id, req.profileId);
+  if (!id) return res.status(404).json({ error: 'Investimento não encontrado' });
+  const r = await pool.query(
+    'DELETE FROM investment_snapshots WHERE id=$1 AND investment_id=$2',
+    [req.params.sid, id]
+  );
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Registro não encontrado' });
   res.json({ ok: true });
 });
 
