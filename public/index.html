@@ -674,6 +674,7 @@ let recurring = [];
 let boxes = [];
 let transfers = [];
 let investments = [];
+let showDoneReminders = false;
 let profiles = [];
 let currentProfileId = null;
 let currentMonth = '';
@@ -1155,9 +1156,10 @@ function renderReminders() {
   const doneIds = doneRecurringIds();
   const hoje = new Date();
   const items = recurring.slice().sort((a, b) => effectiveDay(a, hoje) - effectiveDay(b, hoje));
-  list.innerHTML = items.map(r => {
-    const done = doneIds.has(r.id);
-    return `
+  const pendentes = items.filter(r => !doneIds.has(r.id));
+  const quitados = items.filter(r => doneIds.has(r.id));
+
+  const card = (r, done) => `
     <div class="reminder ${r.type}"${done ? ' style="opacity:.55;"' : ''}>
       <div class="reminder-info">
         <div class="reminder-desc">${done ? '✅' : (r.type === 'expense' ? '💸' : '💰')} ${r.desc}</div>
@@ -1167,7 +1169,24 @@ function renderReminders() {
         ? `<span class="reminder-meta">${r.type === 'expense' ? 'Pago' : 'Recebido'}</span>`
         : `<button class="btn-mini" data-pay="${r.id}">${r.type === 'expense' ? 'Já paguei' : 'Já recebi'}</button>`}
     </div>`;
-  }).join('');
+
+  // Só o que falta fica à vista. O que já foi pago/recebido some atrás de um
+  // botão, para o painel não virar uma lista enorme no fim do mês.
+  let html = pendentes.length === 0
+    ? '<div class="empty">Tudo em dia por aqui 🎉</div>'
+    : pendentes.map(r => card(r, false)).join('');
+  if (quitados.length > 0) {
+    html += `<button type="button" class="btn-mini" id="btnToggleDoneRem" style="margin-top:10px;">
+        ${showDoneReminders ? 'Ocultar' : 'Ver'} ${quitados.length} já resolvido${quitados.length > 1 ? 's' : ''} ✅
+      </button>
+      <div id="doneRemList" class="${showDoneReminders ? '' : 'hidden'}" style="margin-top:10px;">
+        ${quitados.map(r => card(r, true)).join('')}
+      </div>`;
+  }
+  list.innerHTML = html;
+
+  const toggle = document.getElementById('btnToggleDoneRem');
+  if (toggle) toggle.addEventListener('click', () => { showDoneReminders = !showDoneReminders; renderReminders(); });
   list.querySelectorAll('[data-pay]').forEach(b => {
     b.addEventListener('click', () => payReminder(parseInt(b.dataset.pay, 10)));
   });
