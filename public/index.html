@@ -1420,6 +1420,7 @@ window.openBoxStatement = function(id) {
   const items = [];
   transactions.filter(t => String(t.box_id || '') === String(b.id) && (t.date || '') >= start).forEach(t => {
     items.push({
+      txId: t.id,
       date: t.date,
       label: t.desc + (t.category ? ' · ' + t.category : ''),
       delta: t.type === 'income' ? Number(t.amount) : -Number(t.amount)
@@ -1451,12 +1452,32 @@ window.openBoxStatement = function(id) {
               <span class="box-card-bal ${it.delta < 0 ? 'neg' : 'pos'}">${it.delta < 0 ? '−' : '+'} ${fmt(Math.abs(it.delta))}</span>
             </div>
             <span class="reminder-meta">${d}</span>
+            ${it.txId ? `<button type="button" class="icon-btn danger" title="Tirar deste caixa" onclick="unlinkFromBox(${it.txId}, ${b.id})">✖</button>` : ''}
           </li>`;
       }).join('');
   showBoxView('statement');
 };
 
 document.getElementById('btnCloseStatement').addEventListener('click', () => showBoxView('list'));
+
+// Desliga a transação do caixa sem apagá-la: ela continua no histórico,
+// só deixa de mexer no saldo daquele caixa.
+window.unlinkFromBox = async function(txId, boxId) {
+  const t = transactions.find(x => x.id === txId);
+  if (!t) return;
+  if (!confirm(`Tirar "${t.desc}" deste caixa?\n\nA transação continua no histórico, só deixa de descontar do saldo.`)) return;
+  try {
+    await api('/transactions/' + txId, {
+      method: 'PUT',
+      body: JSON.stringify({
+        desc: t.desc, category: t.category, amount: t.amount,
+        type: t.type, date: t.date, box_id: null
+      })
+    });
+    await reload();
+    openBoxStatement(boxId);
+  } catch (e) { alert(e.message); }
+};
 
 function fillTransferSelects() {
   const opts = boxes.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
