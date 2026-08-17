@@ -67,6 +67,10 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_boxes_profile ON cash_boxes(profile_id);
+    -- Data a que o saldo inicial se refere: lançamentos ANTERIORES a ela já estão
+    -- embutidos nesse saldo e não podem ser descontados de novo.
+    ALTER TABLE cash_boxes ADD COLUMN IF NOT EXISTS start_date DATE;
+    UPDATE cash_boxes SET start_date = created_at::date WHERE start_date IS NULL;
     ALTER TABLE transactions ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS idx_tx_box ON transactions(box_id);
     ALTER TABLE recurring_bills ADD COLUMN IF NOT EXISTS box_id INTEGER REFERENCES cash_boxes(id) ON DELETE SET NULL;
@@ -305,13 +309,27 @@ app.post('/api/recurring', auth, resolveProfile, async (req, res) => {
 });
 
 app.put('/api/recurring/:id', auth, resolveProfile, async (req, res) => {
-  const { box_id } = req.body || {};
+  const { box_id, day_of_month, amount } = req.body || {};
   const boxId = await resolveBoxId(box_id, req.user.id, req.profileId);
+  // day_of_month / amount são opcionais: quando não vêm, mantém o valor atual.
+  let day = null;
+  if (day_of_month !== undefined && day_of_month !== null) {
+    day = parseInt(day_of_month, 10);
+    if (!day || day < 1 || day > 31) return res.status(400).json({ error: 'Dia inválido' });
+  }
+  let amt = null;
+  if (amount !== undefined && amount !== null && amount !== '') {
+    amt = Number(amount);
+    if (!(amt > 0)) return res.status(400).json({ error: 'Valor inválido' });
+  }
   const r = await pool.query(
-    `UPDATE recurring_bills SET box_id=$1
+    `UPDATE recurring_bills
+        SET box_id=$1,
+            day_of_month=COALESCE($5, day_of_month),
+            amount=COALESCE($6, amount)
      WHERE id=$2 AND user_id=$3 AND profile_id=$4
      RETURNING id, description AS desc, category, amount::float AS amount, type, day_of_month, box_id`,
-    [boxId, req.params.id, req.user.id, req.profileId]
+    [boxId, req.params.id, req.user.id, req.profileId, day, amt]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Não encontrada' });
   res.json(r.rows[0]);
@@ -331,13 +349,17 @@ app.delete('/api/recurring/:id', auth, resolveProfile, async (req, res) => {
 app.get('/api/boxes', auth, resolveProfile, async (req, res) => {
   const r = await pool.query(
     `SELECT b.id, b.name, b.initial_balance::float AS initial_balance,
+            to_char(b.start_date,'YYYY-MM-DD') AS start_date,
             (b.initial_balance
               + COALESCE(SUM(CASE WHEN t.type='income' THEN t.amount ELSE 0 END),0)
               - COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END),0)
-              + COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.to_box_id = b.id),0)
-              - COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.from_box_id = b.id),0))::float AS balance
+              + COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.to_box_id = b.id
+                           AND tr.date >= COALESCE(b.start_date, DATE '1900-01-01')),0)
+              - COALESCE((SELECT SUM(amount) FROM transfers tr WHERE tr.from_box_id = b.id
+                           AND tr.date >= COALESCE(b.start_date, DATE '1900-01-01')),0))::float AS balance
      FROM cash_boxes b
      LEFT JOIN transactions t ON t.box_id = b.id
+                             AND t.date >= COALESCE(b.start_date, DATE '1900-01-01')
      WHERE b.user_id=$1 AND b.profile_id=$2
      GROUP BY b.id
      ORDER BY b.id ASC`,
@@ -347,31 +369,35 @@ app.get('/api/boxes', auth, resolveProfile, async (req, res) => {
 });
 
 app.post('/api/boxes', auth, resolveProfile, async (req, res) => {
-  const { name, initial_balance } = req.body || {};
+  const { name, initial_balance, start_date } = req.body || {};
   const n = String(name || '').trim();
   if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
   if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
   const init = Number(initial_balance) || 0;
+  const start = start_date || null;
   const r = await pool.query(
-    `INSERT INTO cash_boxes(user_id,profile_id,name,initial_balance)
-     VALUES($1,$2,$3,$4)
-     RETURNING id, name, initial_balance::float AS initial_balance, initial_balance::float AS balance`,
-    [req.user.id, req.profileId, n, init]
+    `INSERT INTO cash_boxes(user_id,profile_id,name,initial_balance,start_date)
+     VALUES($1,$2,$3,$4,COALESCE($5::date, CURRENT_DATE))
+     RETURNING id, name, initial_balance::float AS initial_balance, initial_balance::float AS balance,
+               to_char(start_date,'YYYY-MM-DD') AS start_date`,
+    [req.user.id, req.profileId, n, init, start]
   );
   res.json(r.rows[0]);
 });
 
 app.put('/api/boxes/:id', auth, resolveProfile, async (req, res) => {
-  const { name, initial_balance } = req.body || {};
+  const { name, initial_balance, start_date } = req.body || {};
   const n = String(name || '').trim();
   if (!n) return res.status(400).json({ error: 'Nome obrigatório' });
   if (n.length > 40) return res.status(400).json({ error: 'Nome muito longo' });
   const init = Number(initial_balance) || 0;
+  const start = start_date || null;
   const r = await pool.query(
-    `UPDATE cash_boxes SET name=$1, initial_balance=$2
+    `UPDATE cash_boxes SET name=$1, initial_balance=$2, start_date=COALESCE($6::date, start_date)
      WHERE id=$3 AND user_id=$4 AND profile_id=$5
-     RETURNING id, name, initial_balance::float AS initial_balance`,
-    [n, init, req.params.id, req.user.id, req.profileId]
+     RETURNING id, name, initial_balance::float AS initial_balance,
+               to_char(start_date,'YYYY-MM-DD') AS start_date`,
+    [n, init, req.params.id, req.user.id, req.profileId, start]
   );
   if (r.rowCount === 0) return res.status(404).json({ error: 'Caixa não encontrado' });
   res.json(r.rows[0]);

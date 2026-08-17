@@ -179,6 +179,7 @@
   .box-card.editing { flex-wrap: wrap; }
   .box-card .b-name { flex: 1 1 100%; padding: 9px; }
   .box-card .b-init { flex: 1; min-width: 110px; padding: 9px; }
+  .box-card .b-start { flex: 1; min-width: 130px; padding: 9px; }
   .box-card-edit-actions { display: flex; gap: 6px; }
   .box-card-edit-actions button { padding: 8px 12px; font-size: 0.85em; }
   .btn-add-box { width: 100%; background: #27ae60; margin-bottom: 4px; }
@@ -280,6 +281,7 @@
     .icon-btn { padding: 8px 10px; }
     .box-card.editing { gap: 8px; }
     .box-card .b-init { flex: 1 1 100%; min-width: 0; }
+    .box-card .b-start { flex: 1 1 100%; min-width: 0; }
     .box-card-edit-actions { width: 100%; }
     .box-card-edit-actions button { flex: 1; }
     .calc-modal { max-width: 100%; }
@@ -485,6 +487,15 @@
       </form>
       <div class="transfer-history" id="transferHistory"></div>
     </div>
+    <div id="boxesStatementView" class="hidden">
+      <h3 style="color:#2a5298; margin-bottom:4px;" id="stmtTitle"></h3>
+      <p class="box-intro">Tudo que forma o saldo deste caixa. Se algo estiver aqui sem dever estar, é só corrigir o caixa da transação no histórico.</p>
+      <div class="box-total" id="stmtTotal"></div>
+      <ul class="box-list" id="stmtList" style="max-height:52vh;"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="btnCloseStatement">Voltar</button>
+      </div>
+    </div>
     <div id="boxesAddView" class="hidden">
       <form id="addBoxForm">
         <div class="form-group">
@@ -495,6 +506,11 @@
         <div class="form-group">
           <label>Saldo atual (R$)</label>
           <input type="number" id="newBoxBalance" step="0.01" placeholder="0,00" value="0">
+        </div>
+        <div class="form-group">
+          <label>Esse saldo é de qual dia?</label>
+          <input type="date" id="newBoxStart">
+          <small style="color:#999; font-size:0.8em;">Só os lançamentos a partir dessa data mexem no saldo. O que é mais antigo já está embutido no valor acima.</small>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn-cancel" id="btnCancelAddBox">Voltar</button>
@@ -1065,26 +1081,54 @@ window.makeRecurring = async function(id) {
   } catch (e) { alert(e.message); }
 };
 
-function pendingReminders() {
+// Descobre quais contas fixas já foram pagas/recebidas neste mês.
+// Cada transação vale por UMA conta fixa só: quando existem duas com a mesma
+// descrição (ex.: "futebol + iptv" no dia 04 e no dia 19), a transação é
+// atribuída à que tem o dia mais próximo, e a outra segue pendente.
+// Dia 31 significa "último dia do mês": em fevereiro cai em 28/29, em abril em 30.
+// Qualquer dia maior que o tamanho do mês também é puxado para o último dia.
+function daysInMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+function effectiveDay(r, date) {
+  const d = date || new Date();
+  return Math.min(r.day_of_month, daysInMonth(d));
+}
+function dayLabel(r) {
+  return r.day_of_month === 31 ? 'Último dia do mês' : 'Dia ' + r.day_of_month;
+}
+
+function doneRecurringIds() {
   const today = new Date();
-  const y = today.getFullYear();
-  const m = today.getMonth() + 1;
-  const monthPrefix = `${y}-${String(m).padStart(2,'0')}`;
-  return recurring.filter(r => {
-    if (today.getDate() < r.day_of_month - 3) return false;
-    const paid = transactions.some(t =>
+  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}`;
+  const done = new Set();
+  const usedTx = new Set();
+  recurring.slice().sort((a, b) => a.day_of_month - b.day_of_month).forEach(r => {
+    const cands = transactions.filter(t =>
+      !usedTx.has(t.id) &&
       (t.date || '').startsWith(monthPrefix) &&
       t.type === r.type &&
       (t.desc || '').toLowerCase() === r.desc.toLowerCase()
     );
-    return !paid;
+    if (cands.length === 0) return;
+    const dist = t => Math.abs(parseInt((t.date || '').split('-')[2], 10) - effectiveDay(r, today));
+    cands.sort((a, b) => dist(a) - dist(b));
+    usedTx.add(cands[0].id);
+    done.add(r.id);
   });
+  return done;
+}
+
+function pendingReminders() {
+  const today = new Date();
+  const done = doneRecurringIds();
+  return recurring.filter(r => today.getDate() >= effectiveDay(r, today) - 3 && !done.has(r.id));
 }
 
 function maybeShowDueTodayAlert() {
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
-  const dueToday = pendingReminders().filter(r => r.day_of_month === today.getDate());
+  const dueToday = pendingReminders().filter(r => effectiveDay(r, today) === today.getDate());
   if (dueToday.length === 0) return;
   if (localStorage.getItem('dueTodayDismissed') === todayKey) return;
   const list = document.getElementById('dueTodayList');
@@ -1106,22 +1150,24 @@ function maybeShowDueTodayAlert() {
 function renderReminders() {
   const panel = document.getElementById('remindersPanel');
   const list = document.getElementById('remindersList');
-  const pending = pendingReminders();
-  if (pending.length === 0 && recurring.length === 0) { panel.style.display = 'none'; return; }
+  if (recurring.length === 0) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
-  if (pending.length === 0) {
-    list.innerHTML = '<div class="empty">Nenhum lembrete pendente este mês 🎉</div>';
-    return;
-  }
-  list.innerHTML = pending.map(r => `
-    <div class="reminder ${r.type}">
+  const doneIds = doneRecurringIds();
+  const hoje = new Date();
+  const items = recurring.slice().sort((a, b) => effectiveDay(a, hoje) - effectiveDay(b, hoje));
+  list.innerHTML = items.map(r => {
+    const done = doneIds.has(r.id);
+    return `
+    <div class="reminder ${r.type}"${done ? ' style="opacity:.55;"' : ''}>
       <div class="reminder-info">
-        <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
-        <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}${boxName(r.box_id) ? ' · 💼 ' + escapeHtml(boxName(r.box_id)) : ''}</div>
+        <div class="reminder-desc">${done ? '✅' : (r.type === 'expense' ? '💸' : '💰')} ${r.desc}</div>
+        <div class="reminder-meta">${dayLabel(r)} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}${boxName(r.box_id) ? ' · 💼 ' + escapeHtml(boxName(r.box_id)) : ''}</div>
       </div>
-      <button class="btn-mini" data-pay="${r.id}">${r.type === 'expense' ? 'Já paguei' : 'Já recebi'}</button>
-    </div>
-  `).join('');
+      ${done
+        ? `<span class="reminder-meta">${r.type === 'expense' ? 'Pago' : 'Recebido'}</span>`
+        : `<button class="btn-mini" data-pay="${r.id}">${r.type === 'expense' ? 'Já paguei' : 'Já recebi'}</button>`}
+    </div>`;
+  }).join('');
   list.querySelectorAll('[data-pay]').forEach(b => {
     b.addEventListener('click', () => payReminder(parseInt(b.dataset.pay, 10)));
   });
@@ -1189,11 +1235,27 @@ document.getElementById('btnManageRecurring').addEventListener('click', () => {
       <div class="reminder ${r.type}">
         <div class="reminder-info">
           <div class="reminder-desc">${r.type === 'expense' ? '💸' : '💰'} ${r.desc}</div>
-          <div class="reminder-meta">Dia ${r.day_of_month} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
+          <div class="reminder-meta">${dayLabel(r)} · ${fmt(r.amount)}${r.category ? ' · ' + r.category : ''}</div>
         </div>
+        <button class="btn-mini" data-day-rec="${r.id}">Mudar dia</button>
         <button class="btn-mini" data-del-rec="${r.id}" style="background:#e74c3c;color:white;">Excluir</button>
       </div>
     `).join('');
+    list.querySelectorAll('[data-day-rec]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const r = recurring.find(x => String(x.id) === b.dataset.dayRec);
+        if (!r) return;
+        const ans = prompt('Em que dia do mês esta conta cai?\n\nDigite o número (1 a 30) ou 31 para "último dia do mês" (fevereiro cai no 28/29, abril no 30...).', r.day_of_month);
+        if (ans === null) return;
+        const day = parseInt(ans, 10);
+        if (!day || day < 1 || day > 31) { alert('Dia inválido.'); return; }
+        try {
+          await api('/recurring/' + r.id, { method: 'PUT', body: JSON.stringify({ box_id: r.box_id || null, day_of_month: day }) });
+          await reload();
+          openManageRecurring();
+        } catch (e) { alert(e.message); }
+      });
+    });
     list.querySelectorAll('[data-del-rec]').forEach(b => {
       b.addEventListener('click', async () => {
         if (!confirm('Remover esta conta fixa? As transações já registradas continuam.')) return;
@@ -1302,6 +1364,7 @@ function renderBoxList() {
         <li class="box-card editing" data-id="${b.id}">
           <input type="text" class="b-name" value="${escapeHtml(b.name)}" maxlength="40" placeholder="Nome">
           <input type="number" step="0.01" class="b-init" value="${Number(b.initial_balance).toFixed(2)}" placeholder="Saldo">
+          <input type="date" class="b-start" value="${b.start_date || ''}" title="Esse saldo é de qual dia?">
           <span class="box-card-edit-actions">
             <button type="button" class="btn-mini" onclick="saveBox(${b.id})">Salvar</button>
             <button type="button" class="btn-cancel btn-mini" onclick="cancelEditBox()">Cancelar</button>
@@ -1315,6 +1378,7 @@ function renderBoxList() {
           <span class="box-card-name">${escapeHtml(b.name)}</span>
           <span class="box-card-bal ${Number(b.balance) < 0 ? 'neg' : 'pos'}">${fmt(b.balance)}</span>
         </div>
+        <button type="button" class="icon-btn" title="Ver extrato" onclick="openBoxStatement(${b.id})">📄</button>
         <button type="button" class="icon-btn" title="Editar" onclick="startEditBox(${b.id})">✏️</button>
         <button type="button" class="icon-btn danger" title="Excluir" onclick="deleteBox(${b.id})">🗑️</button>
       </li>`;
@@ -1325,7 +1389,55 @@ function showBoxView(which) {
   document.getElementById('boxesListView').classList.toggle('hidden', which !== 'list');
   document.getElementById('boxesAddView').classList.toggle('hidden', which !== 'add');
   document.getElementById('boxesTransferView').classList.toggle('hidden', which !== 'transfer');
+  document.getElementById('boxesStatementView').classList.toggle('hidden', which !== 'statement');
 }
+
+// Extrato do caixa: mostra item por item o que forma o saldo, para dar
+// para conferir de onde veio cada desconto.
+window.openBoxStatement = function(id) {
+  const b = boxes.find(x => String(x.id) === String(id));
+  if (!b) return;
+  const start = b.start_date || '1900-01-01';
+  const items = [];
+  transactions.filter(t => String(t.box_id || '') === String(b.id) && (t.date || '') >= start).forEach(t => {
+    items.push({
+      date: t.date,
+      label: t.desc + (t.category ? ' · ' + t.category : ''),
+      delta: t.type === 'income' ? Number(t.amount) : -Number(t.amount)
+    });
+  });
+  transfers.filter(tr => (tr.date || '') >= start).forEach(tr => {
+    if (String(tr.from_box_id) === String(b.id)) {
+      items.push({ date: tr.date, label: '↔ Transferido para ' + (tr.to_name || '—'), delta: -Number(tr.amount) });
+    }
+    if (String(tr.to_box_id) === String(b.id)) {
+      items.push({ date: tr.date, label: '↔ Recebido de ' + (tr.from_name || '—'), delta: Number(tr.amount) });
+    }
+  });
+  items.sort((a, b2) => (b2.date || '').localeCompare(a.date || ''));
+
+  document.getElementById('stmtTitle').textContent = '📄 Extrato · ' + b.name;
+  const startTxt = b.start_date ? new Date(b.start_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  document.getElementById('stmtTotal').innerHTML =
+    `<span class="bt-label">${fmt(b.initial_balance)} em ${startTxt} + ${items.length} lançamento(s)</span><span class="bt-value">${fmt(b.balance)}</span>`;
+  const ul = document.getElementById('stmtList');
+  ul.innerHTML = items.length === 0
+    ? '<li class="box-empty">Nenhum lançamento ligado a este caixa.<br>O saldo é só o saldo inicial.</li>'
+    : items.map(it => {
+        const d = it.date ? new Date(it.date + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+        return `
+          <li class="box-card">
+            <div class="box-card-main">
+              <span class="box-card-name">${escapeHtml(it.label)}</span>
+              <span class="box-card-bal ${it.delta < 0 ? 'neg' : 'pos'}">${it.delta < 0 ? '−' : '+'} ${fmt(Math.abs(it.delta))}</span>
+            </div>
+            <span class="reminder-meta">${d}</span>
+          </li>`;
+      }).join('');
+  showBoxView('statement');
+};
+
+document.getElementById('btnCloseStatement').addEventListener('click', () => showBoxView('list'));
 
 function fillTransferSelects() {
   const opts = boxes.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
@@ -1413,6 +1525,7 @@ document.getElementById('boxesClose').addEventListener('click', () => {
 document.getElementById('btnShowAddBox').addEventListener('click', () => {
   document.getElementById('newBoxName').value = '';
   document.getElementById('newBoxBalance').value = '0';
+  document.getElementById('newBoxStart').valueAsDate = new Date();
   showBoxView('add');
   document.getElementById('newBoxName').focus();
 });
@@ -1422,9 +1535,10 @@ document.getElementById('addBoxForm').addEventListener('submit', async e => {
   e.preventDefault();
   const name = document.getElementById('newBoxName').value.trim();
   const initial_balance = parseFloat(document.getElementById('newBoxBalance').value) || 0;
+  const start_date = document.getElementById('newBoxStart').value || null;
   if (!name) return;
   try {
-    await api('/boxes', { method: 'POST', body: JSON.stringify({ name, initial_balance }) });
+    await api('/boxes', { method: 'POST', body: JSON.stringify({ name, initial_balance, start_date }) });
     await reload();
     showBoxView('list');
     renderBoxList();
@@ -1444,9 +1558,10 @@ window.saveBox = async function(id) {
   const li = document.querySelector(`#boxList li[data-id="${id}"]`);
   const name = li.querySelector('.b-name').value.trim();
   const initial_balance = parseFloat(li.querySelector('.b-init').value) || 0;
+  const start_date = li.querySelector('.b-start').value || null;
   if (!name) { alert('Dê um nome ao caixa.'); return; }
   try {
-    await api('/boxes/' + id, { method: 'PUT', body: JSON.stringify({ name, initial_balance }) });
+    await api('/boxes/' + id, { method: 'PUT', body: JSON.stringify({ name, initial_balance, start_date }) });
     editingBoxId = null;
     await reload();
     renderBoxList();
