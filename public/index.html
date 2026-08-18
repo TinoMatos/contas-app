@@ -290,7 +290,50 @@
     #calcModal.calc-min .modal { max-width: 200px; }
     .card-hint { font-size: 0.7em; }
   }
+  /* --- Seletor de cor de fundo --- */
+  .theme-wrap { position: relative; display: inline-flex; }
+  .theme-menu {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 500;
+    background: #fff; border-radius: 12px; padding: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    display: grid; grid-template-columns: repeat(4, 40px); gap: 10px;
+  }
+  .theme-menu.hidden { display: none; }
+  .theme-swatch {
+    width: 40px; height: 40px; border-radius: 10px; padding: 0;
+    border: 2px solid transparent; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .theme-swatch:hover { transform: scale(1.08); }
+  .theme-swatch.active { border-color: #2a3a4f; box-shadow: 0 0 0 2px #fff inset; }
 </style>
+<script>
+// Temas de fundo. Aplicado ainda no <head> para nao piscar a cor padrao.
+var BG_KEY = 'fin_bg';
+var BG_THEMES = [
+  { id: 'azul',    nome: 'Azul',     css: 'linear-gradient(135deg, #1e3c72, #2a5298)' },
+  { id: 'roxo',    nome: 'Roxo',     css: 'linear-gradient(135deg, #4a2f7a, #7b4fb5)' },
+  { id: 'verde',   nome: 'Verde',    css: 'linear-gradient(135deg, #11624a, #1e9e74)' },
+  { id: 'teal',    nome: 'Turquesa', css: 'linear-gradient(135deg, #0f5f6b, #1c96a8)' },
+  { id: 'vinho',   nome: 'Vinho',    css: 'linear-gradient(135deg, #6b1226, #a83252)' },
+  { id: 'laranja', nome: 'Laranja',  css: 'linear-gradient(135deg, #a34a10, #e8813a)' },
+  { id: 'grafite', nome: 'Grafite',  css: 'linear-gradient(135deg, #1f2933, #3e4c59)' },
+  { id: 'noite',   nome: 'Noite',    css: 'linear-gradient(135deg, #0b1020, #182135)' }
+];
+function bgTheme(id) {
+  for (var i = 0; i < BG_THEMES.length; i++) if (BG_THEMES[i].id === id) return BG_THEMES[i];
+  return BG_THEMES[0];
+}
+function aplicarFundo(id) {
+  var el = document.getElementById('bgOverride');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'bgOverride';
+    document.head.appendChild(el);
+  }
+  el.textContent = 'body { background: ' + bgTheme(id).css + ' !important; background-attachment: fixed !important; }';
+}
+try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -321,7 +364,7 @@
 <div id="appScreen" class="container hidden">
   <div class="header">
     <h1><img src="/icon-192.png" class="brand-icon" alt="">Controle Financeiro</h1>
-    <div class="user-info">Olá, <span id="currentUser"></span><button class="btn-logout" id="btnBio" title="Bloqueio biométrico">🔒</button><button class="btn-logout" id="btnLogout">Sair</button></div>
+    <div class="user-info">Olá, <span id="currentUser"></span><span class="theme-wrap"><button class="btn-logout" id="btnTheme" title="Cor do fundo">🎨</button><div class="theme-menu hidden" id="themeMenu"></div></span><button class="btn-logout" id="btnBio" title="Bloqueio biométrico">🔒</button><button class="btn-logout" id="btnLogout">Sair</button></div>
   </div>
   <div class="profile-bar">
     <label for="profileSelect">Perfil:</label>
@@ -2029,6 +2072,34 @@ document.getElementById('iosInstallLink').addEventListener('click', (e) => {
 document.getElementById('closeIosHelp').addEventListener('click', () => {
   document.getElementById('iosHelpModal').classList.add('hidden');
 });
+
+// --- Seletor de cor de fundo ---
+const themeMenu = document.getElementById('themeMenu');
+
+function renderThemeMenu() {
+  const atual = localStorage.getItem(BG_KEY) || BG_THEMES[0].id;
+  themeMenu.innerHTML = BG_THEMES.map(t =>
+    `<button type="button" class="theme-swatch${t.id === atual ? ' active' : ''}" data-bg="${t.id}" title="${t.nome}" style="background:${t.css}"></button>`
+  ).join('');
+}
+
+document.getElementById('btnTheme').addEventListener('click', (e) => {
+  e.stopPropagation();
+  renderThemeMenu();
+  themeMenu.classList.toggle('hidden');
+});
+
+themeMenu.addEventListener('click', (e) => {
+  const alvo = e.target.closest('[data-bg]');
+  if (!alvo) return;
+  const id = alvo.dataset.bg;
+  aplicarFundo(id);
+  try { localStorage.setItem(BG_KEY, id); } catch (err) {}
+  themeMenu.classList.add('hidden');
+});
+
+// Fecha ao clicar fora
+document.addEventListener('click', () => themeMenu.classList.add('hidden'));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
