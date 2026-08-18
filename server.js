@@ -5,8 +5,13 @@ const { Pool } = require('pg');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'troque-este-segredo-em-producao';
+const JWT_SECRET = process.env.JWT_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!JWT_SECRET || JWT_SECRET.length < 16) {
+  console.error('JWT_SECRET não definida (ou muito curta). Defina uma chave aleatória longa nas Variables do Railway.');
+  process.exit(1);
+}
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL não definida. Conecte um Postgres ao serviço no Railway.');
@@ -156,7 +161,7 @@ app.post('/api/register', async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'Dados inválidos' });
   const u = String(username).trim().toLowerCase();
   if (!/^[a-z0-9_.-]{2,30}$/.test(u)) return res.status(400).json({ error: 'Usuário inválido' });
-  if (password.length < 3) return res.status(400).json({ error: 'Senha muito curta' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Senha muito curta (mínimo 8 caracteres)' });
   try {
     const hash = await bcrypt.hash(password, 10);
     const r = await pool.query(
