@@ -110,6 +110,14 @@ npm start        # http://localhost:3000
 | `DATABASE_URL` | sim | Conexão com o PostgreSQL |
 | `JWT_SECRET` | sim | Assina os tokens de login (mínimo 16 caracteres) |
 | `PORT` | não | Porta do servidor (padrão `3000`) |
+| `PGSSLROOTCERT` | não | Caminho para um CA próprio, se o banco usa certificado que não está no bundle do sistema |
+| `DATABASE_SSL_INSECURE` | não | `true` desliga a validação do certificado do banco. Só como último recurso — deixa a conexão aberta a man-in-the-middle |
+
+Sobre TLS: quando `DATABASE_URL` aponta para a rede interna do Railway
+(`*.railway.internal`) ou `localhost`, o SSL fica desligado porque o tráfego
+não sai do projeto. Para qualquer outro host o certificado **é validado**.
+Se a conexão passar a falhar com `self signed certificate`, aponte o CA em
+`PGSSLROOTCERT` em vez de recorrer a `DATABASE_SSL_INSECURE`.
 
 O servidor **se recusa a subir** sem `DATABASE_URL` ou sem um `JWT_SECRET`
 válido. É proposital: melhor falhar no boot do que rodar com uma chave

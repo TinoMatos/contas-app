@@ -18,9 +18,29 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
+// TLS: na rede privada do Railway (*.railway.internal) o trafego nao sai do
+// projeto e o Postgres nao expoe TLS, entao SSL fica desligado. Em qualquer
+// outro host exigimos certificado valido -- sem isso a conexao com o banco
+// fica aberta a man-in-the-middle. PGSSLROOTCERT aponta um CA proprio.
+const DB_HOST = new URL(DATABASE_URL).hostname;
+const IS_INTERNAL = DB_HOST.endsWith('.railway.internal') || DB_HOST === 'localhost';
+
+let ssl = false;
+if (!IS_INTERNAL) {
+  if (process.env.DATABASE_SSL_INSECURE === 'true') {
+    console.warn('AVISO: DATABASE_SSL_INSECURE=true, certificado do banco nao sera validado.');
+    ssl = { rejectUnauthorized: false };
+  } else {
+    ssl = { rejectUnauthorized: true };
+    if (process.env.PGSSLROOTCERT) {
+      ssl.ca = require('fs').readFileSync(process.env.PGSSLROOTCERT, 'utf8');
+    }
+  }
+}
+
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl
 });
 
 async function initDb() {
