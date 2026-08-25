@@ -11,10 +11,17 @@
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <style>
+  /* Cor de destaque: acompanha o tema de fundo escolhido (ver BG_THEMES). */
+  :root {
+    --bg-grad: linear-gradient(135deg, #1e3c72, #2a5298);
+    --accent: #2a5298;
+    --accent-dark: #1e3c72;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    background: var(--bg-grad);
     min-height: 100vh; padding: 20px; color: #333;
   }
   .container { max-width: 1000px; margin: 0 auto; }
@@ -26,7 +33,7 @@
   }
   .recurring-inline { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.95em; color: #555; }
   .recurring-inline input { width: auto; margin: 0; }
-  .reminder { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid #2a5298; gap: 10px; }
+  .reminder { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #f8f9fa; border-left: 4px solid var(--accent); gap: 10px; }
   .reminder.expense { border-left-color: #e74c3c; }
   .reminder.income { border-left-color: #27ae60; }
   .reminder-desc { font-weight: 600; }
@@ -63,13 +70,13 @@
   .income { color: #27ae60; } .expense { color: #e74c3c; }
   .balance-positive { color: #27ae60; } .balance-negative { color: #e74c3c; }
   .panel { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
-  .panel h2 { margin-bottom: 15px; color: #2a5298; }
+  .panel h2 { margin-bottom: 15px; color: var(--accent); }
   form#form { display: grid; grid-template-columns: repeat(5, 1fr) auto; gap: 10px; align-items: end; }
   .form-group label { display: block; font-size: 0.85em; color: #666; margin-bottom: 4px; }
   input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1em; }
-  input:focus, select:focus { outline: none; border-color: #2a5298; }
-  button { padding: 10px 20px; background: #2a5298; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; }
-  button:hover { background: #1e3c72; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  button { padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; }
+  button:hover { background: var(--accent-dark); }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-delete { background: #e74c3c; padding: 6px 12px; font-size: 0.85em; }
   .btn-delete:hover { background: #c0392b; }
@@ -86,13 +93,13 @@
   .category-list li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
   .auth-wrapper { min-height: 90vh; display: flex; align-items: center; justify-content: center; }
   .auth-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 100%; max-width: 400px; }
-  .auth-box h2 { color: #2a5298; margin-bottom: 8px; text-align: center; }
+  .auth-box h2 { color: var(--accent); margin-bottom: 8px; text-align: center; }
   .auth-box p.subtitle { text-align: center; color: #666; margin-bottom: 25px; font-size: 0.95em; }
   .auth-box .form-group { margin-bottom: 15px; }
   .auth-box button { width: 100%; margin-top: 10px; padding: 12px; }
   .tabs { display: flex; margin-bottom: 25px; border-bottom: 2px solid #eee; }
   .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; color: #666; font-weight: bold; border-bottom: 3px solid transparent; margin-bottom: -2px; }
-  .tab.active { color: #2a5298; border-bottom-color: #2a5298; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .hist-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #eee; }
   .hist-tab { padding: 10px 18px; cursor: pointer; color: #666; font-weight: bold; border-bottom: 3px solid transparent; margin-bottom: -2px; }
   .hist-tab.active.income-tab { color: #27ae60; border-bottom-color: #27ae60; }
@@ -100,14 +107,14 @@
   .auth-error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 0.9em; min-height: 20px; }
   .hidden { display: none !important; }
   .month-bar { background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .month-bar label { font-weight: bold; color: #2a5298; }
+  .month-bar label { font-weight: bold; color: var(--accent); }
   .month-bar input[type="month"] { width: auto; }
   .month-bar .btn-all { background: #95a5a6; padding: 8px 14px; font-size: 0.9em; }
   .month-bar .btn-all:hover { background: #7f8c8d; }
-  .month-bar .btn-all.active { background: #2a5298; }
+  .month-bar .btn-all.active { background: var(--accent); }
   .month-bar .label-info { color: #666; font-size: 0.9em; margin-left: auto; }
   .profile-bar { background: white; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .profile-bar label { font-weight: bold; color: #2a5298; }
+  .profile-bar label { font-weight: bold; color: var(--accent); }
   .profile-bar select { width: auto; min-width: 180px; }
   .profile-bar .btn-mini { padding: 8px 12px; font-size: 0.9em; }
   .profile-bar .btn-mini.secondary { background: #95a5a6; }
@@ -128,7 +135,7 @@
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     max-height: 90vh; overflow-y: auto;
   }
-  .modal h2 { color: #2a5298; margin-bottom: 20px; }
+  .modal h2 { color: var(--accent); margin-bottom: 20px; }
   .modal .form-group { margin-bottom: 15px; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
   .btn-cancel { background: #95a5a6; }
@@ -138,7 +145,7 @@
   .card-hint { font-size: 0.72em; color: #999; margin-top: 6px; }
   .box-intro { color: #666; font-size: 0.9em; margin-bottom: 15px; }
   .box-total {
-    background: linear-gradient(135deg, #1e3c72, #2a5298); color: #fff;
+    background: var(--bg-grad); color: #fff;
     border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
     display: flex; justify-content: space-between; align-items: center;
     box-shadow: 0 4px 12px rgba(42,82,152,0.3);
@@ -186,15 +193,15 @@
   .btn-add-box:hover { background: #1e8e4e; }
   .box-actions-row { display: flex; gap: 8px; margin-bottom: 4px; }
   .box-actions-row button { flex: 1; margin-bottom: 0; }
-  .btn-transfer-box { background: #2a5298; }
-  .btn-transfer-box:hover { background: #1e3c72; }
+  .btn-transfer-box { background: var(--accent); }
+  .btn-transfer-box:hover { background: var(--accent-dark); }
   .transfer-history { margin-top: 18px; }
   .transfer-history h4 { font-size: 0.8em; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
   .transfer-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eee; font-size: 0.92em; }
   .transfer-item .ti-main { flex: 1; min-width: 0; }
   .transfer-item .ti-route { font-weight: 600; color: #2a3a4f; }
   .transfer-item .ti-date { color: #999; font-size: 0.82em; margin-top: 2px; }
-  .transfer-item .ti-amount { font-weight: bold; color: #2a5298; white-space: nowrap; }
+  .transfer-item .ti-amount { font-weight: bold; color: var(--accent); white-space: nowrap; }
   .transfer-empty { color: #999; text-align: center; padding: 14px 0; font-size: 0.9em; }
   .box-add-form .form-group { margin-bottom: 14px; }
   .box-empty { text-align: center; color: #999; padding: 24px 0; }
@@ -202,7 +209,7 @@
     margin-left: auto; background: #eef1f6; color: #5a6472;
     padding: 8px 11px; display: inline-flex; align-items: center; justify-content: center;
   }
-  .btn-calc-bar:hover { background: #e0e5ee; color: #2a5298; }
+  .btn-calc-bar:hover { background: #e0e5ee; color: var(--accent); }
   .btn-calc-bar svg { display: block; }
   .bar-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .bar-actions .btn-calc-bar { margin-left: 0; }
@@ -221,8 +228,8 @@
     border-radius: 10px; font-weight: 600;
   }
   .calc-grid button:hover { background: #dfe5ef; }
-  .calc-grid button.op { background: #2a5298; color: #fff; }
-  .calc-grid button.op:hover { background: #1e3c72; }
+  .calc-grid button.op { background: var(--accent); color: #fff; }
+  .calc-grid button.op:hover { background: var(--accent-dark); }
   .calc-grid button.fn { background: #d9534f; color: #fff; }
   .calc-grid button.fn:hover { background: #c9302c; }
   .calc-grid button.eq { background: #27ae60; color: #fff; grid-column: span 2; }
@@ -257,7 +264,7 @@
     }
     #historyTable td { border: none; padding: 2px 0; }
     #historyTable td:nth-child(1) { font-size: 0.8em; color: #888; }
-    #historyTable td:nth-child(2) { font-weight: bold; font-size: 1.05em; color: #2a5298; padding-right: 90px; }
+    #historyTable td:nth-child(2) { font-weight: bold; font-size: 1.05em; color: var(--accent); padding-right: 90px; }
     #historyTable td:nth-child(3) { font-size: 0.85em; color: #666; padding-right: 90px; }
     #historyTable td:nth-child(4) { font-size: 1.2em; font-weight: bold; margin-top: 4px; }
     #historyTable td.actions {
@@ -309,15 +316,18 @@
 <script>
 // Temas de fundo. Aplicado ainda no <head> para nao piscar a cor padrao.
 var BG_KEY = 'fin_bg';
+// accent = cor dos titulos/botoes dentro dos cards brancos. Escolhida escura
+// o bastante para texto branco por cima e para contraste no fundo branco --
+// nao e o tom claro do gradiente, que ficaria ilegivel.
 var BG_THEMES = [
-  { id: 'azul',    nome: 'Azul',     css: 'linear-gradient(135deg, #1e3c72, #2a5298)' },
-  { id: 'roxo',    nome: 'Roxo',     css: 'linear-gradient(135deg, #4a2f7a, #7b4fb5)' },
-  { id: 'verde',   nome: 'Verde',    css: 'linear-gradient(135deg, #11624a, #1e9e74)' },
-  { id: 'teal',    nome: 'Turquesa', css: 'linear-gradient(135deg, #0f5f6b, #1c96a8)' },
-  { id: 'vinho',   nome: 'Vinho',    css: 'linear-gradient(135deg, #6b1226, #a83252)' },
-  { id: 'laranja', nome: 'Laranja',  css: 'linear-gradient(135deg, #a34a10, #e8813a)' },
-  { id: 'grafite', nome: 'Grafite',  css: 'linear-gradient(135deg, #1f2933, #3e4c59)' },
-  { id: 'noite',   nome: 'Noite',    css: 'linear-gradient(135deg, #0b1020, #182135)' }
+  { id: 'azul',    nome: 'Azul',     css: 'linear-gradient(135deg, #1e3c72, #2a5298)', accent: '#2a5298', accentDark: '#1e3c72' },
+  { id: 'roxo',    nome: 'Roxo',     css: 'linear-gradient(135deg, #4a2f7a, #7b4fb5)', accent: '#6a3fa0', accentDark: '#4a2f7a' },
+  { id: 'verde',   nome: 'Verde',    css: 'linear-gradient(135deg, #11624a, #1e9e74)', accent: '#16805f', accentDark: '#11624a' },
+  { id: 'teal',    nome: 'Turquesa', css: 'linear-gradient(135deg, #0f5f6b, #1c96a8)', accent: '#12798a', accentDark: '#0f5f6b' },
+  { id: 'vinho',   nome: 'Vinho',    css: 'linear-gradient(135deg, #6b1226, #a83252)', accent: '#8f2440', accentDark: '#6b1226' },
+  { id: 'laranja', nome: 'Laranja',  css: 'linear-gradient(135deg, #a34a10, #e8813a)', accent: '#b0530f', accentDark: '#8a3f0b' },
+  { id: 'grafite', nome: 'Grafite',  css: 'linear-gradient(135deg, #1f2933, #3e4c59)', accent: '#3e4c59', accentDark: '#1f2933' },
+  { id: 'noite',   nome: 'Noite',    css: 'linear-gradient(135deg, #0b1020, #182135)', accent: '#2f4a7a', accentDark: '#1e3050' }
 ];
 function bgTheme(id) {
   for (var i = 0; i < BG_THEMES.length; i++) if (BG_THEMES[i].id === id) return BG_THEMES[i];
@@ -330,7 +340,11 @@ function aplicarFundo(id) {
     el.id = 'bgOverride';
     document.head.appendChild(el);
   }
-  el.textContent = 'body { background: ' + bgTheme(id).css + ' !important; background-attachment: fixed !important; }';
+  var t = bgTheme(id);
+  el.textContent = ':root { --bg-grad: ' + t.css + '; --accent: ' + t.accent + '; --accent-dark: ' + t.accentDark + '; }' +
+                   'body { background: ' + t.css + ' !important; background-attachment: fixed !important; }';
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t.accent);
 }
 try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); } catch (e) {}
 </script>
@@ -517,7 +531,7 @@ try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); 
       </div>
     </div>
     <div id="boxesTransferView" class="hidden">
-      <h3 style="color:#2a5298; margin-bottom:14px;">↔ Transferir entre caixas</h3>
+      <h3 style="color:var(--accent); margin-bottom:14px;">↔ Transferir entre caixas</h3>
       <form id="transferForm">
         <div class="form-group"><label>De (sai o dinheiro)</label><select id="transferFrom"></select></div>
         <div class="form-group"><label>Para (entra o dinheiro)</label><select id="transferTo"></select></div>
@@ -531,7 +545,7 @@ try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); 
       <div class="transfer-history" id="transferHistory"></div>
     </div>
     <div id="boxesStatementView" class="hidden">
-      <h3 style="color:#2a5298; margin-bottom:4px;" id="stmtTitle"></h3>
+      <h3 style="color:var(--accent); margin-bottom:4px;" id="stmtTitle"></h3>
       <p class="box-intro">Tudo que forma o saldo deste caixa. Se algo estiver aqui sem dever estar, é só corrigir o caixa da transação no histórico.</p>
       <div class="box-total" id="stmtTotal"></div>
       <ul class="box-list" id="stmtList" style="max-height:52vh;"></ul>
@@ -597,7 +611,7 @@ try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); 
       </form>
     </div>
     <div id="investUpdateView" class="hidden">
-      <h3 style="color:#2a5298; margin-bottom:6px;">💰 Atualizar valor</h3>
+      <h3 style="color:var(--accent); margin-bottom:6px;">💰 Atualizar valor</h3>
       <p class="box-intro" id="investUpdateName"></p>
       <form id="investUpdateForm">
         <input type="hidden" id="investUpdateId">
