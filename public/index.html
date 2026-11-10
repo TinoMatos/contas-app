@@ -255,6 +255,13 @@
   .calc-hint-min { display: none; font-size: 0.72em; color: #999; text-align: center; margin-top: 6px; }
   /* calculadora sempre por cima das outras janelas */
   #calcModal { z-index: 1000; }
+  /* janela solta: não escurece nem bloqueia o que está atrás, e pode ser arrastada pelo título */
+  #calcModal { background: transparent; pointer-events: none; }
+  #calcModal .modal { pointer-events: auto; box-shadow: 0 12px 36px rgba(0,0,0,0.45); }
+  #calcModal .calc-modal { width: min(340px, calc(100vw - 20px)); }
+  #calcModal.calc-moved .modal { position: fixed; margin: 0; }
+  #calcModal .calc-header { cursor: move; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #calcModal .calc-header .calc-min-btn { cursor: pointer; }
   .calc-fab {
     position: fixed; right: 16px; bottom: 16px; z-index: 1000;
     width: 52px; height: 52px; border-radius: 50%; padding: 0;
@@ -2008,6 +2015,7 @@ function calcOpen() {
   const modal = document.getElementById('calcModal');
   modal.classList.remove('calc-min');
   modal.classList.remove('hidden');
+  calcRestorePos();
   updateCalcFab();
 }
 document.getElementById('btnCalc').addEventListener('click', calcOpen);
@@ -2033,6 +2041,52 @@ new MutationObserver(updateCalcFab).observe(document.body, { subtree: true, attr
 
 function calcMinimize(on) {
   document.getElementById('calcModal').classList.toggle('calc-min', on);
+  calcClamp();
+}
+
+// ---- Arrastar a calculadora pelo título (mouse e toque) ----
+const CALC_POS_KEY = 'calcPos';
+const calcBox = document.querySelector('#calcModal .modal');
+function calcPlace(x, y) {
+  const r = calcBox.getBoundingClientRect();
+  x = Math.max(0, Math.min(x, window.innerWidth - r.width));
+  y = Math.max(0, Math.min(y, window.innerHeight - r.height));
+  document.getElementById('calcModal').classList.add('calc-moved');
+  calcBox.style.left = x + 'px';
+  calcBox.style.top = y + 'px';
+  return { x, y };
+}
+// Mantém a janela dentro da tela (ao expandir, girar o celular, redimensionar)
+function calcClamp() {
+  if (!document.getElementById('calcModal').classList.contains('calc-moved')) return;
+  calcPlace(parseFloat(calcBox.style.left) || 0, parseFloat(calcBox.style.top) || 0);
+}
+window.addEventListener('resize', calcClamp);
+
+document.querySelector('#calcModal .calc-header').addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  e.preventDefault();
+  const r = calcBox.getBoundingClientRect();
+  const dx = e.clientX - r.left, dy = e.clientY - r.top;
+  const header = e.currentTarget;
+  header.setPointerCapture(e.pointerId);
+  const move = ev => calcPlace(ev.clientX - dx, ev.clientY - dy);
+  const up = () => {
+    header.removeEventListener('pointermove', move);
+    header.removeEventListener('pointerup', up);
+    header.removeEventListener('pointercancel', up);
+    try { localStorage.setItem(CALC_POS_KEY, JSON.stringify({ x: parseFloat(calcBox.style.left), y: parseFloat(calcBox.style.top) })); } catch {}
+  };
+  header.addEventListener('pointermove', move);
+  header.addEventListener('pointerup', up);
+  header.addEventListener('pointercancel', up);
+});
+
+// Abre no último lugar onde foi deixada
+function calcRestorePos() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(CALC_POS_KEY)); } catch {}
+  if (p && isFinite(p.x) && isFinite(p.y)) calcPlace(p.x, p.y);
 }
 document.getElementById('calcMin').addEventListener('click', () => calcMinimize(true));
 // Toca na barrinha minimizada para expandir
