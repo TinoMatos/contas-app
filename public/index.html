@@ -480,6 +480,15 @@ try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); 
   </footer>
 </div>
 
+<button type="button" class="calc-fab hidden" id="calcFab" title="Calculadora">
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="2" width="16" height="20" rx="2"/>
+    <line x1="8" y1="6" x2="16" y2="6"/>
+    <path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/>
+    <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14v4"/>
+    <path d="M8 18h.01"/><path d="M12 18h.01"/>
+  </svg>
+</button>
 <div id="calcModal" class="modal-overlay hidden">
   <div class="modal calc-modal">
     <div class="calc-header">
@@ -490,15 +499,6 @@ try { var salvo = localStorage.getItem(BG_KEY); if (salvo) aplicarFundo(salvo); 
         <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14v4"/>
         <path d="M8 18h.01"/><path d="M12 18h.01"/>
       </svg>Calculadora</h2>
-<button type="button" class="calc-fab hidden" id="calcFab" title="Calculadora">
-  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="4" y="2" width="16" height="20" rx="2"/>
-    <line x1="8" y1="6" x2="16" y2="6"/>
-    <path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/>
-    <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14v4"/>
-    <path d="M8 18h.01"/><path d="M12 18h.01"/>
-  </svg>
-</button>
       <button type="button" class="calc-min-btn" id="calcMin" title="Minimizar">—</button>
     </div>
     <div class="calc-display" id="calcDisplay">
@@ -2008,13 +2008,28 @@ function calcOpen() {
   const modal = document.getElementById('calcModal');
   modal.classList.remove('calc-min');
   modal.classList.remove('hidden');
-});
+  updateCalcFab();
+}
+document.getElementById('btnCalc').addEventListener('click', calcOpen);
+document.getElementById('calcFab').addEventListener('click', calcOpen);
 
 function calcHide() {
   const modal = document.getElementById('calcModal');
   modal.classList.remove('calc-min');
   modal.classList.add('hidden');
-});
+  updateCalcFab();
+}
+document.getElementById('calcClose').addEventListener('click', calcHide);
+
+// Botão flutuante da calculadora: aparece quando alguma outra janela está aberta
+// (o botão da barra fica escondido atrás dela) e a calculadora está fechada.
+function updateCalcFab() {
+  const calcHidden = document.getElementById('calcModal').classList.contains('hidden');
+  const otherOpen = [...document.querySelectorAll('.modal-overlay')]
+    .some(m => m.id !== 'calcModal' && !m.classList.contains('hidden'));
+  document.getElementById('calcFab').classList.toggle('hidden', !(calcHidden && otherOpen));
+}
+new MutationObserver(updateCalcFab).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
 function calcMinimize(on) {
   document.getElementById('calcModal').classList.toggle('calc-min', on);
@@ -2033,10 +2048,7 @@ document.getElementById('calcUse').addEventListener('click', () => {
   target.dispatchEvent(new Event('input', { bubbles: true }));
   calcHide();
   target.focus();
-  updateCalcFab();
-}
-document.getElementById('btnCalc').addEventListener('click', calcOpen);
-document.getElementById('calcFab').addEventListener('click', calcOpen);
+});
 
 // Suporte a teclado quando a calculadora está aberta (útil no Windows).
 // Minimizada ou com o cursor num campo de texto, o teclado fica com o campo.
@@ -2051,19 +2063,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Backspace') { calcExpr = calcExpr.slice(0, -1); calcRender(); }
   else if (e.key === 'Escape') calcHide();
   else if (e.key.toLowerCase() === 'c') { calcExpr = ''; calcRender(); }
-  updateCalcFab();
-}
-document.getElementById('calcClose').addEventListener('click', calcHide);
-
-// Botão flutuante da calculadora: aparece quando alguma outra janela está aberta
-// (o botão da barra fica escondido atrás dela) e a calculadora está fechada.
-function updateCalcFab() {
-  const calcHidden = document.getElementById('calcModal').classList.contains('hidden');
-  const otherOpen = [...document.querySelectorAll('.modal-overlay')]
-    .some(m => m.id !== 'calcModal' && !m.classList.contains('hidden'));
-  document.getElementById('calcFab').classList.toggle('hidden', !(calcHidden && otherOpen));
-}
-new MutationObserver(updateCalcFab).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+});
 
 function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
 function b64ToBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer; }
